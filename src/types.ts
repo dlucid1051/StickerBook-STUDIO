@@ -100,7 +100,7 @@ export interface ExportedSticker {
 
 export interface VaultPackFile {
   version: 1;
-  format: 'braingrid-vault-pack';
+  format: 'stickerbook-vault-pack' | 'braingrid-vault-pack';
   packType: 'combo' | 'stickers-only' | 'background-only';
   name: string;
   author?: string;

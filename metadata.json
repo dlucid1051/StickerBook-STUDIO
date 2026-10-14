@@ -1,6 +1,6 @@
 {
   "name": "BrainGrid Studio",
-  "description": "Dynamic memory and flashcard maker with interactive card flips, timed matching grids, quizzes, and StickerBook STUDIO.",
+  "description": "Tactile sticker album and creative canvas studio. Collect, peel, style, place, and design custom theme packs and stickers.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

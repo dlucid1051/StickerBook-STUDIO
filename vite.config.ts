@@ -15,9 +15,9 @@ export default defineConfig(() => {
         includeAssets: ['favicon.svg', 'icon.svg'],
         manifest: {
           id: '/',
-          name: 'BrainGrid Studio',
-          short_name: 'BrainGrid',
-          description: 'Dynamic memory and flashcard maker with interactive card flips, timed matching grids, quizzes, and sticker reward vault.',
+          name: 'StickerBook STUDIO',
+          short_name: 'StickerBook',
+          description: 'Tactile sticker album and creative canvas studio. Collect, peel, style, place, and design custom theme packs and stickers.',
           theme_color: '#6366f1',
           background_color: '#f8fafc',
           display: 'standalone',

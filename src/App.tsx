@@ -16,6 +16,11 @@ import { X } from 'lucide-react';
 export default function App() {
   const [settings, setSettings] = useState<StudySettings>(() => storage.loadSettings());
 
+  // Removed theme packs
+  const REMOVED_PACK_IDS = useMemo(() => new Set(['pack-mythic-beasts', 'pack-cyber', 'pack-botany']), []);
+  const isRemovedSticker = (id?: string) =>
+    id && (id.startsWith('stk-myth-') || id.startsWith('stk-cyber-') || id.startsWith('stk-bot-'));
+
   // Helper to detect if a cached ocean pack is the legacy version rather than the official replacement
   const isLegacyOceanPack = (pack?: StickerPack | null) =>
     pack?.id === 'pack-ocean' &&
@@ -25,7 +30,7 @@ export default function App() {
   const [customPacks, setCustomPacks] = useState<StickerPack[]>(() => {
     const raw = storage.loadCustomPacks();
     const list = raw
-      .filter((p) => p && p.id)
+      .filter((p) => p && p.id && !REMOVED_PACK_IDS.has(p.id))
       .map((p) => {
         if (p.id === 'pack-ocean' && isLegacyOceanPack(p)) {
           const factory = INITIAL_STICKER_PACKS.find((f) => f.id === 'pack-ocean');
@@ -57,7 +62,9 @@ export default function App() {
     return list;
   });
 
-  const [placedStickers, setPlacedStickers] = useState<PlacedSticker[]>(() => storage.loadPlacedStickers());
+  const [placedStickers, setPlacedStickers] = useState<PlacedSticker[]>(() =>
+    storage.loadPlacedStickers().filter((p) => !isRemovedSticker(p.stickerId))
+  );
 
   // Automatically ensure any current Ocean customization is captured as the permanent default
   useEffect(() => {
@@ -105,7 +112,7 @@ export default function App() {
     });
 
     const validCustom = customPacks
-      .filter((cp) => cp && cp.id && !builtInIds.has(cp.id))
+      .filter((cp) => cp && cp.id && !builtInIds.has(cp.id) && !REMOVED_PACK_IDS.has(cp.id))
       .map((cp) => {
         // Self-heal any legacy custom packs that previously retained built-in sticker IDs
         const hasCoreIds = cp.stickers.some((s) => isCoreSticker(s.id));
@@ -164,10 +171,10 @@ export default function App() {
       // Merge placed stickers safely across IndexedDB and LocalStorage (local storage has most immediate real-time coordinates)
       const placedMap = new Map<string, PlacedSticker>();
       for (const p of idbPlaced) {
-        if (p?.id) placedMap.set(p.id, p);
+        if (p?.id && !isRemovedSticker(p.stickerId)) placedMap.set(p.id, p);
       }
       for (const p of localPlaced) {
-        if (p?.id) placedMap.set(p.id, p);
+        if (p?.id && !isRemovedSticker(p.stickerId)) placedMap.set(p.id, p);
       }
       const cleanedPlaced = Array.from(placedMap.values());
       if (cleanedPlaced.length > 0 && !isCancelled) {
@@ -202,7 +209,7 @@ export default function App() {
       // Merge custom packs and core pack overrides safely
       const packMap = new Map<string, StickerPack>();
       for (const pk of [...idbPacks, ...localPacks]) {
-        if (!pk?.id) continue;
+        if (!pk?.id || REMOVED_PACK_IDS.has(pk.id)) continue;
         if (pk.id === 'pack-ocean' && isLegacyOceanPack(pk)) {
           continue;
         }

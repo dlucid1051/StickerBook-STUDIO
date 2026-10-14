@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { CanvasScene, PlacedSticker, Sticker, StickerPack, StickerRarity } from '../types';
 import { CANVAS_SCENES } from '../data/stickerPacks';
 import { PASTEL_COLOR_SETS, PastelSet, getRandomPastelSet } from '../data/pastelThemes';
-import { NEON_COLOR_SETS, NeonSet, getRandomNeonSet } from '../data/neonThemes';
 import { SpaceBackground } from './SpaceBackground';
 import { PrehistoricBackground } from './PrehistoricBackground';
 import { NeonBackground } from './NeonBackground';
@@ -70,14 +69,12 @@ interface ThemeThumbnailPreviewProps {
   scene: CanvasScene;
   linkedPack?: StickerPack;
   activePastelHex?: string;
-  activeNeonGradient?: string;
 }
 
 const ThemeThumbnailPreview: React.FC<ThemeThumbnailPreviewProps> = ({
   scene,
   linkedPack,
   activePastelHex,
-  activeNeonGradient,
 }) => {
   // 1. Uploaded Image wallpaper
   const imageUrl =
@@ -145,12 +142,6 @@ const ThemeThumbnailPreview: React.FC<ThemeThumbnailPreviewProps> = ({
   if (scene.pattern === 'arcade') {
     return (
       <div className="w-full h-full bg-gradient-to-br from-[#18032e] via-[#0f051d] to-[#050014] relative overflow-hidden flex items-center justify-center select-none pointer-events-none">
-        {activeNeonGradient && (
-          <div
-            className="absolute inset-0 opacity-40 transition-all duration-300"
-            style={{ background: activeNeonGradient }}
-          />
-        )}
         <div
           className="absolute inset-0 opacity-30"
           style={{
@@ -407,30 +398,6 @@ export const StickerVault: React.FC<StickerVaultProps> = ({
     storage.savePastelColorId(id);
   };
 
-  // Neon Theme State: alternates across 5 vibrant neon cyber palettes
-  const [activeNeonId, setActiveNeonId] = useState<string>(() => {
-    const saved = storage.loadNeonColorId();
-    if (saved && NEON_COLOR_SETS.some((s) => s.id === saved)) {
-      return saved;
-    }
-    return getRandomNeonSet().id;
-  });
-
-  const activeNeonSet: NeonSet =
-    NEON_COLOR_SETS.find((s) => s.id === activeNeonId) || NEON_COLOR_SETS[0];
-
-  const handleAlternateNeon = () => {
-    sounds.playPop();
-    const nextSet = getRandomNeonSet(activeNeonId);
-    setActiveNeonId(nextSet.id);
-    storage.saveNeonColorId(nextSet.id);
-  };
-
-  const handleSelectNeon = (id: string) => {
-    sounds.playPop();
-    setActiveNeonId(id);
-    storage.saveNeonColorId(id);
-  };
 
   // Dragging state
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -1111,8 +1078,8 @@ export const StickerVault: React.FC<StickerVaultProps> = ({
 
       // Download file automatically to Downloads folder
       const link = document.createElement('a');
-      const safeName = (activeScene.name || 'BrainGrid-Canvas').replace(/[^a-zA-Z0-9_-]/g, '_');
-      link.download = `BrainGrid-${safeName}-${Date.now()}.png`;
+      const safeName = (activeScene.name || 'StickerBook-Canvas').replace(/[^a-zA-Z0-9_-]/g, '_');
+      link.download = `StickerBook-${safeName}-${Date.now()}.png`;
       link.href = dataUrl;
       link.click();
     } catch (err) {
@@ -1294,7 +1261,7 @@ export const StickerVault: React.FC<StickerVaultProps> = ({
       case 'dots':
         return 'border-emerald-800/80 shadow-inner';
       case 'arcade':
-        return `${activeNeonSet.canvasBorder} shadow-xl`;
+        return 'border-fuchsia-500/30 shadow-[0_0_25px_rgba(244,63,94,0.18)] shadow-xl';
       case 'ocean':
         return 'border-cyan-700/60 shadow-[0_0_25px_rgba(6,182,212,0.18)]';
       case 'custom-image':
@@ -1315,7 +1282,7 @@ export const StickerVault: React.FC<StickerVaultProps> = ({
       case 'dots':
         return 'bg-gradient-to-b from-[#062c20] via-[#052118] to-[#02140f] text-emerald-100';
       case 'arcade':
-        return `${activeNeonSet.canvasBg} transition-all duration-500`;
+        return 'bg-gradient-to-b from-[#120722] via-[#0d051b] to-[#06020e] text-fuchsia-100';
       case 'ocean':
         return 'bg-gradient-to-b from-[#021526] via-[#03223f] to-[#041e2e] text-cyan-100';
       case 'custom-image':
@@ -1398,7 +1365,6 @@ export const StickerVault: React.FC<StickerVaultProps> = ({
                   {filteredScenes.map((sc) => {
                     const isActive = activeSceneId === sc.id;
                     const isPastel = sc.id === 'scene-notebook';
-                    const isNeon = sc.id === 'scene-arcade' || sc.id === 'scene-cyber';
 
                     return (
                       <button
@@ -1406,11 +1372,9 @@ export const StickerVault: React.FC<StickerVaultProps> = ({
                         data-scene-id={sc.id}
                         onClick={() => {
                           if (isActive) {
-                            // Subsequent clicks: randomly cycle through other available color/palette options
+                            // Subsequent clicks: randomly cycle through other available color options for pastel
                             if (isPastel) {
                               handleAlternatePastel();
-                            } else if (isNeon) {
-                              handleAlternateNeon();
                             } else {
                               sounds.playPop();
                             }
@@ -1424,8 +1388,6 @@ export const StickerVault: React.FC<StickerVaultProps> = ({
                           isActive
                             ? isPastel
                               ? `Pastel Theme active (${activePastelSet.name}) — click again to shuffle colors`
-                              : isNeon
-                              ? `Neon Theme active (${activeNeonSet.name}) — click again to shuffle palettes`
                               : `${sc.name} active`
                             : `Switch to ${sc.name}`
                         }
@@ -1439,12 +1401,6 @@ export const StickerVault: React.FC<StickerVaultProps> = ({
                           <span
                             className="w-2 h-2 rounded-full transition-colors duration-300 shadow-2xs shrink-0"
                             style={{ backgroundColor: activePastelSet.swatchHex }}
-                          />
-                        )}
-                        {isNeon && (
-                          <span
-                            className="w-2 h-2 rounded-full transition-all duration-300 shadow-2xs shrink-0"
-                            style={{ background: activeNeonSet.swatchGradient }}
                           />
                         )}
                         <span>
@@ -1682,7 +1638,7 @@ export const StickerVault: React.FC<StickerVaultProps> = ({
                 <PrehistoricBackground />
               )}
               {activeScene.pattern === 'arcade' && !activeScene.isCustom && (
-                <NeonBackground neonSet={activeNeonSet} />
+                <NeonBackground />
               )}
               {activeScene.pattern === 'ocean' && !activeScene.isCustom && (
                 <OceanBackground />
@@ -1821,15 +1777,13 @@ export const StickerVault: React.FC<StickerVaultProps> = ({
                 : activeScene.pattern === 'dots'
                 ? 'text-emerald-300'
                 : activeScene.pattern === 'arcade'
-                ? activeNeonSet.accentText
+                ? 'text-fuchsia-400'
                 : activeScene.pattern === 'ocean'
                 ? 'text-cyan-300'
                 : 'text-indigo-300'
             }`}>
               {activeScene.pattern === 'notebook' 
                 ? `Pastel • ${activePastelSet.name}` 
-                : activeScene.pattern === 'arcade'
-                ? `Neon • ${activeNeonSet.name}`
                 : activeScene.name} • {sceneStickers.length} Stickers Placed
             </div>
 
@@ -2357,7 +2311,6 @@ export const StickerVault: React.FC<StickerVaultProps> = ({
                 filteredScenes.map((sc) => {
                   const isActive = activeSceneId === sc.id;
                   const isPastel = sc.id === 'scene-notebook';
-                  const isNeon = sc.id === 'scene-arcade' || sc.id === 'scene-cyber';
                   const linkedPack = packs.find((p) => p.id === sc.packId || p.themeSceneId === sc.id);
                   return (
                     <div
@@ -2383,7 +2336,6 @@ export const StickerVault: React.FC<StickerVaultProps> = ({
                             scene={sc}
                             linkedPack={linkedPack}
                             activePastelHex={activePastelSet.swatchHex}
-                            activeNeonGradient={activeNeonSet.swatchGradient}
                           />
                         </div>
 
@@ -2477,60 +2429,6 @@ export const StickerVault: React.FC<StickerVaultProps> = ({
                         </div>
                       )}
 
-                      {/* Neon Card Controls: Shuffle & Swatch Picker */}
-                      {isNeon && (
-                        <div className="mt-2.5 pt-2 border-t border-fuchsia-100 dark:border-fuchsia-900/50 flex flex-wrap items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleAlternateNeon();
-                                if (activeSceneId !== sc.id) {
-                                  selectTheme(sc.id);
-                                }
-                              }}
-                              title="Randomly shuffle through 5 vibrant Neon palettes (Synthwave, Acid Tokyo, Outrun Sunset, Laser Ice, Vapor Amethyst)"
-                              className="flex items-center gap-1 px-2 py-1 rounded-xl text-xs font-bold bg-fuchsia-100/80 dark:bg-fuchsia-950/70 text-fuchsia-700 dark:text-fuchsia-300 border border-fuchsia-200 dark:border-fuchsia-800/70 hover:bg-fuchsia-200/80 dark:hover:bg-fuchsia-900 transition-all cursor-pointer shadow-2xs hover:scale-102 active:scale-98"
-                            >
-                              <Shuffle className="w-3 h-3 text-fuchsia-600 dark:text-fuchsia-400" />
-                              <span>Shuffle</span>
-                            </button>
-
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border flex items-center gap-1 ${activeNeonSet.badgeClass}`}>
-                              <span
-                                className="w-1.5 h-1.5 rounded-full shrink-0"
-                                style={{ background: activeNeonSet.swatchGradient }}
-                              />
-                              <span>{activeNeonSet.name}</span>
-                            </span>
-                          </div>
-
-                          {/* 5 Neon Swatch Buttons */}
-                          <div className="flex items-center gap-1" title="Select a neon palette">
-                            {NEON_COLOR_SETS.map((set) => (
-                              <button
-                                key={set.id}
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleSelectNeon(set.id);
-                                  if (activeSceneId !== sc.id) {
-                                    selectTheme(sc.id);
-                                  }
-                                }}
-                                title={`${set.name}: ${set.description}`}
-                                className={`w-4.5 h-4.5 rounded-full transition-all cursor-pointer ${
-                                  activeNeonId === set.id
-                                    ? 'ring-2 ring-fuchsia-500 ring-offset-1 scale-115 shadow-[0_0_8px_rgba(244,63,94,0.6)]'
-                                    : 'opacity-70 hover:opacity-100 hover:scale-110'
-                                }`}
-                                style={{ background: set.swatchGradient }}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   );
                 })

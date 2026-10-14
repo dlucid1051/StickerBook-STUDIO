@@ -196,13 +196,13 @@ export async function exportPackAsPngZip(
 
   // 3. Manifest metadata JSON
   const manifest = {
-    format: 'braingrid-png-pack-export',
+    format: 'stickerbook-png-pack-export',
     version: 1,
     packId: pack.id,
     name: pack.name,
     theme: pack.theme,
     description: pack.description,
-    author: pack.author || 'BrainGrid',
+    author: pack.author || 'StickerBook STUDIO',
     icon: pack.icon,
     stickersCount: pack.stickers.length,
     stickers: pack.stickers.map((s, idx) => ({
@@ -215,18 +215,18 @@ export async function exportPackAsPngZip(
     })),
     backdrop: backdropFilename ? { filename: backdropFilename, theme: companionScene?.theme } : undefined,
     exportedAt: new Date().toISOString(),
-    exportedBy: 'ThemePack STUDIO (BrainGrid)',
+    exportedBy: 'ThemePack STUDIO (StickerBook STUDIO)',
   };
 
   zip.file('manifest.json', JSON.stringify(manifest, null, 2));
 
   // 4. Human-readable README.txt
   const readmeContent = [
-    `BrainGrid ThemePack STUDIO - PNG Pack Export`,
+    `StickerBook ThemePack STUDIO - PNG Pack Export`,
     `============================================`,
     `Pack Name:    ${pack.name}`,
     `Theme:        ${pack.theme || 'Standard'}`,
-    `Author:       ${pack.author || 'BrainGrid'}`,
+    `Author:       ${pack.author || 'StickerBook STUDIO'}`,
     `Description:  ${pack.description || 'Collectible sticker pack'}`,
     `Stickers:     ${pack.stickers.length} PNG images with transparent backgrounds`,
     ``,
@@ -329,7 +329,7 @@ export async function exportAllCorePacksAsZip(
 
   // Master Manifest
   const masterManifest = {
-    bundle: 'braingrid-core-theme-packs-png-bundle',
+    bundle: 'stickerbook-core-theme-packs-png-bundle',
     version: 1,
     exportedAt: new Date().toISOString(),
     packsCount: corePacks.length,
@@ -345,7 +345,7 @@ export async function exportAllCorePacksAsZip(
 
   // Master README.txt
   const masterReadme = [
-    `BrainGrid Core Theme Packs - PNG Master Archive`,
+    `StickerBook Core Theme Packs - PNG Master Archive`,
     `==============================================`,
     `Included Core Packs: ${corePacks.length}`,
     ``,
@@ -370,5 +370,5 @@ export async function exportAllCorePacksAsZip(
     compressionOptions: { level: 6 },
   });
 
-  downloadBlob(zipBlob, 'braingrid-core-theme-packs-png.zip');
+  downloadBlob(zipBlob, 'stickerbook-core-theme-packs-png.zip');
 }

@@ -1,11 +1,11 @@
 import React from 'react';
-import { NeonSet } from '../data/neonThemes';
+import { NeonSet, NEON_COLOR_SETS } from '../data/neonThemes';
 
 interface NeonBackgroundProps {
-  neonSet: NeonSet;
+  neonSet?: NeonSet;
 }
 
-export const NeonBackground: React.FC<NeonBackgroundProps> = ({ neonSet }) => {
+export const NeonBackground: React.FC<NeonBackgroundProps> = ({ neonSet = NEON_COLOR_SETS[0] }) => {
   return (
     <div
       data-canvas-bg="true"

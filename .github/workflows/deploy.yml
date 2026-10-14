@@ -1,4 +1,4 @@
-name: Deploy BrainGrid Studio to GitHub Pages
+name: Deploy StickerBook STUDIO to GitHub Pages
 
 on:
   push:

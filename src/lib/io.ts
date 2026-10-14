@@ -325,8 +325,8 @@ export async function exportVaultPack(pack?: StickerPack, scene?: CanvasScene, c
   }
 
   const name = pack?.name || scene?.name || 'Vault Pack';
-  const description = pack?.description || scene?.theme || 'BrainGrid Custom Vault Pack';
-  const author = pack?.author || scene?.author || 'BrainGrid Creator';
+  const description = pack?.description || scene?.theme || 'StickerBook Custom Vault Pack';
+  const author = pack?.author || scene?.author || 'StickerBook Creator';
   const icon = pack?.icon || '🎨';
 
   // Compact backdrop image on export if present
@@ -381,7 +381,7 @@ export async function exportVaultPack(pack?: StickerPack, scene?: CanvasScene, c
 
   const packFile: VaultPackFile = {
     version: 1,
-    format: 'braingrid-vault-pack',
+    format: 'stickerbook-vault-pack',
     packType,
     name,
     author,
@@ -405,14 +405,14 @@ export async function exportVaultPack(pack?: StickerPack, scene?: CanvasScene, c
 
   const jsonStr = JSON.stringify(packFile, null, 2);
   const safeBaseName = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-  const filename = customFilename || `braingrid-pack-${safeBaseName}.json`;
+  const filename = customFilename || `stickerbook-pack-${safeBaseName}.json`;
 
   downloadFile(jsonStr, filename, 'application/json');
 }
 
 /**
  * Parse and validate a Vault Pack JSON file string.
- * Supports standard BrainGrid vault pack schema, single pack exports,
+ * Supports standard StickerBook and legacy BrainGrid vault pack schema, single pack exports,
  * community themes, arrays of packs/stickers, and Google Drive cloud exports.
  */
 export function parseVaultPackJSON(jsonStr: string): VaultPackFile | null {
@@ -634,7 +634,7 @@ export function parseVaultPackJSON(jsonStr: string): VaultPackFile | null {
 
     return {
       version: 1,
-      format: 'braingrid-vault-pack',
+      format: 'stickerbook-vault-pack',
       packType,
       name,
       author: getCleanString(data.author),

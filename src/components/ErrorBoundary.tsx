@@ -47,10 +47,10 @@ export class ErrorBoundary extends Component<Props, State> {
               <AlertTriangle className="w-8 h-8" />
             </div>
             <h2 className="text-xl font-bold font-display text-white mb-2">
-              BrainGrid Studio Recovered
+              StickerBook STUDIO Recovered
             </h2>
             <p className="text-sm text-slate-300 mb-6 leading-relaxed">
-              An unexpected render issue was safely intercepted. You can resume your study session or reload clean data.
+              An unexpected render issue was safely intercepted. You can resume your creative studio session or reload clean data.
             </p>
             <div className="flex flex-col gap-3">
               <button

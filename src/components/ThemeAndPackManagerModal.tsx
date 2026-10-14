@@ -280,7 +280,7 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
     setEditingPackId(pack.id);
     setPackName(pack.name || '');
     setSelectedDraftStickerId(null);
-    setPackAuthor(pack.author || (pack.isCustom ? 'Creator' : 'BrainGrid'));
+    setPackAuthor(pack.author || (pack.isCustom ? 'Creator' : 'StickerBook STUDIO'));
     setPackTheme(pack.theme || '');
     setPackDescription(pack.description || '');
     setPackIcon(pack.icon || '🌟');
@@ -769,7 +769,7 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
         bgGradient: bgType === 'image' ? 'bg-slate-950' : 'bg-slate-900',
         pattern: bgType === 'image' ? 'custom-image' : 'custom-svg',
         isCustom: !isEditingBuiltIn,
-        author: packAuthor.trim() || (isEditingBuiltIn ? 'BrainGrid' : 'You'),
+        author: packAuthor.trim() || (isEditingBuiltIn ? 'StickerBook STUDIO' : 'You'),
         customConfig,
         packId,
       };
@@ -794,7 +794,7 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
           bgGradient: 'bg-slate-950',
           pattern: 'custom-svg',
           isCustom: !isEditingBuiltIn,
-          author: packAuthor.trim() || (isEditingBuiltIn ? 'BrainGrid' : 'You'),
+          author: packAuthor.trim() || (isEditingBuiltIn ? 'StickerBook STUDIO' : 'You'),
           customConfig: {
             type: 'svg',
             svgMarkup: `<svg viewBox="0 0 1000 500" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="amb-${packId}" cx="50%" cy="30%" r="70%"><stop offset="0%" stop-color="#1e1b4b" stop-opacity="0.9" /><stop offset="60%" stop-color="#0f172a" stop-opacity="0.95" /><stop offset="100%" stop-color="#020617" stop-opacity="1" /></radialGradient></defs><rect width="1000" height="500" fill="url(#amb-${packId})" /><circle cx="820" cy="110" r="45" fill="#fef08a" opacity="0.85" /><circle cx="805" cy="100" r="42" fill="#0f172a" opacity="0.9" /></svg>`,
@@ -816,7 +816,7 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
     const packToSave: StickerPack = {
       id: packId,
       name: effectivePackName,
-      author: packAuthor.trim() || (isEditingBuiltIn ? 'BrainGrid' : 'You'),
+      author: packAuthor.trim() || (isEditingBuiltIn ? 'StickerBook STUDIO' : 'You'),
       theme: packTheme.trim() || effectivePackName,
       description: packDescription.trim() || `${effectivePackName} Sticker Pack`,
       icon: packIcon.trim() || '🎨',
@@ -874,7 +874,7 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
           bgGradient: 'bg-slate-950',
           pattern: 'custom-svg',
           isCustom: true,
-          author: pack.author || 'BrainGrid',
+          author: pack.author || 'StickerBook STUDIO',
           customConfig: {
             type: 'svg',
             presetTemplate: coreBackdrop.templateId,
@@ -1544,7 +1544,7 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
                                 )}
                               </div>
                               <p className="text-xs text-slate-500 dark:text-slate-400">
-                                By {pack.author || 'BrainGrid'} • {pack.theme}
+                                By {pack.author || 'StickerBook STUDIO'} • {pack.theme}
                               </p>
                             </div>
                           </div>
@@ -2572,7 +2572,7 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
                   Import Shared Pack (.json)
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Select or drop a BrainGrid Vault Pack JSON file to install custom themes, sticker collections, or full combos.
+                  Select or drop a StickerBook Vault Pack JSON file to install custom themes, sticker collections, or full combos.
                 </p>
               </div>
 
@@ -2615,7 +2615,7 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
                     <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
                       Click to choose file or drag and drop
                     </p>
-                    <p className="text-xs text-slate-400 mt-1">Accepts .json and .braingrid-pack.json</p>
+                    <p className="text-xs text-slate-400 mt-1">Accepts .json and .stickerbook-pack.json</p>
                   </>
                 )}
               </div>

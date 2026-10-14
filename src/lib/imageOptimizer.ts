@@ -1,5 +1,5 @@
 /**
- * Image optimization utility for BrainGrid ThemePack STUDIO.
+ * Image optimization utility for StickerBook ThemePack STUDIO.
  * Downscales and compresses large wallpaper/backdrop images and sticker images
  * to keep memory and storage footprint under control, preventing browser
  * localStorage QuotaExceededError while maintaining crisp HD visual quality.
