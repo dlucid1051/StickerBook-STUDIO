@@ -6,13 +6,13 @@ import {VitePWA} from 'vite-plugin-pwa';
 
 export default defineConfig(() => {
   return {
-    base: '/',
+    base: './',
     plugins: [
       react(),
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.svg', 'icon.svg'],
+        includeAssets: ['favicon.svg', 'icon.svg', 'favicon.ico'],
         manifest: {
           id: '/',
           name: 'StickerBook STUDIO',
