@@ -1,6 +1,7 @@
 import React from 'react';
 import { CustomBackgroundConfig } from '../types';
 import { sanitizeSvgMarkup } from '../lib/sanitizeSvg';
+import { resolvePublicAsset } from '../lib/assetPath';
 
 interface CustomCanvasBackgroundProps {
   config?: CustomBackgroundConfig;
@@ -51,7 +52,8 @@ export const CustomCanvasBackground: React.FC<CustomCanvasBackgroundProps> = ({
     const dimming = (config.dimming ?? 0) / 100;
     const blurPx = config.blur ?? 0;
     const fitMode = config.fitMode || 'cover';
-    const safeUrl = effectiveImageUrl.replace(/"/g, '\\"');
+    const resolvedUrl = resolvePublicAsset(effectiveImageUrl);
+    const safeUrl = resolvedUrl.replace(/"/g, '\\"');
 
     const filterParts: string[] = [];
     if (blurPx > 0) filterParts.push(`blur(${blurPx}px)`);

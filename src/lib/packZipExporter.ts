@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import { Sticker, StickerPack, CanvasScene } from '../types';
+import { resolvePublicAsset } from './assetPath';
 
 /**
  * Converts any sticker icon (WebP/PNG image URL, Data URL, raw SVG string, or emoji)
@@ -29,14 +30,18 @@ export async function stickerIconToPngBlob(
     trimmed.startsWith('https://') ||
     trimmed.startsWith('blob:') ||
     trimmed.startsWith('/') ||
+    trimmed.startsWith('./') ||
+    trimmed.startsWith('stickers/') ||
+    trimmed.startsWith('backdrops/') ||
     trimmed.endsWith('.webp') ||
     trimmed.endsWith('.png') ||
     trimmed.endsWith('.jpg') ||
     trimmed.endsWith('.jpeg')
   ) {
+    const resolvedUrl = resolvePublicAsset(trimmed);
     try {
       // First try fetching as blob to bypass any cross-origin taint or decoder quirks
-      const response = await fetch(trimmed);
+      const response = await fetch(resolvedUrl);
       if (!response.ok) throw new Error(`HTTP error ${response.status}`);
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
@@ -47,7 +52,7 @@ export async function stickerIconToPngBlob(
       }
     } catch {
       // Fallback direct URL render
-      return await renderUrlToPngBlob(trimmed, targetSize);
+      return await renderUrlToPngBlob(resolvedUrl, targetSize);
     }
   }
 

@@ -1,5 +1,6 @@
 import React from 'react';
 import { sanitizeSvgMarkup } from '../lib/sanitizeSvg';
+import { resolvePublicAsset } from '../lib/assetPath';
 
 interface StickerIconRendererProps {
   icon: string;
@@ -35,6 +36,8 @@ export const StickerIconRenderer: React.FC<StickerIconRendererProps> = ({
     trimmed.startsWith('https://') ||
     trimmed.startsWith('blob:') ||
     trimmed.startsWith('/') ||
+    trimmed.startsWith('./') ||
+    trimmed.startsWith('stickers/') ||
     trimmed.endsWith('.webp') ||
     trimmed.endsWith('.png') ||
     trimmed.endsWith('.jpg') ||
@@ -42,7 +45,7 @@ export const StickerIconRenderer: React.FC<StickerIconRendererProps> = ({
   ) {
     return (
       <img
-        src={trimmed}
+        src={resolvePublicAsset(trimmed)}
         alt={alt}
         className={`${sizeClasses} ${className} object-contain pointer-events-none select-none`}
         referrerPolicy="no-referrer"

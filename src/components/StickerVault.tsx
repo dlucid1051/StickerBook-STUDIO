@@ -13,6 +13,7 @@ import { sanitizeSvgMarkup } from '../lib/sanitizeSvg';
 import { sounds } from '../lib/sound';
 import { storage } from '../lib/io';
 import { trimAndMaximizeStickerImage } from '../lib/imageOptimizer';
+import { resolvePublicAsset } from '../lib/assetPath';
 import confetti from 'canvas-confetti';
 import { toPng } from 'html-to-image';
 import { 
@@ -86,7 +87,7 @@ const ThemeThumbnailPreview: React.FC<ThemeThumbnailPreviewProps> = ({
   if (imageUrl) {
     return (
       <img
-        src={imageUrl}
+        src={resolvePublicAsset(imageUrl)}
         alt={scene.name || 'Theme'}
         className="w-full h-full object-cover select-none pointer-events-none"
         loading="lazy"

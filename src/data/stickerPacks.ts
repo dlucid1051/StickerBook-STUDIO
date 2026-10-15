@@ -17,7 +17,7 @@ export const CANVAS_SCENES: CanvasScene[] = [
     packId: 'pack-space',
     customConfig: {
       type: 'image',
-      imageUrl: '/backdrops/space_cosmos.webp',
+      imageUrl: './backdrops/space_cosmos.webp',
       fitMode: 'cover',
       opacity: 100,
       dimming: 0,
@@ -34,7 +34,7 @@ export const CANVAS_SCENES: CanvasScene[] = [
     packId: 'pack-dino',
     customConfig: {
       type: 'image',
-      imageUrl: '/backdrops/prehistoric_valley.webp',
+      imageUrl: './backdrops/prehistoric_valley.webp',
       fitMode: 'cover',
       opacity: 100,
       dimming: 0,
@@ -51,7 +51,7 @@ export const CANVAS_SCENES: CanvasScene[] = [
     packId: 'pack-math-arcade',
     customConfig: {
       type: 'image',
-      imageUrl: '/backdrops/neon_arcade.webp',
+      imageUrl: './backdrops/neon_arcade.webp',
       fitMode: 'cover',
       opacity: 100,
       dimming: 0,
@@ -68,7 +68,7 @@ export const CANVAS_SCENES: CanvasScene[] = [
     packId: 'pack-ocean',
     customConfig: {
       type: 'image',
-      imageUrl: '/backdrops/ocean_reef.webp',
+      imageUrl: './backdrops/ocean_reef.webp',
       fitMode: 'cover',
       opacity: 100,
       dimming: 0,
@@ -95,7 +95,7 @@ export const INITIAL_STICKER_PACKS: StickerPack[] = [
         rarity: 'Common',
         color: '#38bdf8',
         description: 'Brave feline astronaut cruising zero gravity.',
-        svgIcon: '/stickers/stk-space-1.webp',
+        svgIcon: './stickers/stk-space-1.webp',
         isCustomImage: true,
       },
       {
@@ -105,7 +105,7 @@ export const INITIAL_STICKER_PACKS: StickerPack[] = [
         rarity: 'Common',
         color: '#facc15',
         description: 'A radiant super-star celebrating your bright creativity!',
-        svgIcon: '/stickers/stk-space-2.webp',
+        svgIcon: './stickers/stk-space-2.webp',
         isCustomImage: true,
       },
       {
@@ -115,7 +115,7 @@ export const INITIAL_STICKER_PACKS: StickerPack[] = [
         rarity: 'Rare',
         color: '#fb923c',
         description: 'Luminous planetary jewel with dazzling orbit rings.',
-        svgIcon: '/stickers/stk-space-3.webp',
+        svgIcon: './stickers/stk-space-3.webp',
         isCustomImage: true,
       },
       {
@@ -125,7 +125,7 @@ export const INITIAL_STICKER_PACKS: StickerPack[] = [
         rarity: 'Rare',
         color: '#4ade80',
         description: 'A curious lime alien waving from a mini flying saucer.',
-        svgIcon: '/stickers/stk-space-4.webp',
+        svgIcon: './stickers/stk-space-4.webp',
         isCustomImage: true,
       },
       {
@@ -135,7 +135,7 @@ export const INITIAL_STICKER_PACKS: StickerPack[] = [
         rarity: 'Legendary',
         color: '#c084fc',
         description: 'Cosmic guardian born from interstellar nebula dust.',
-        svgIcon: '/stickers/stk-space-5.webp',
+        svgIcon: './stickers/stk-space-5.webp',
         isCustomImage: true,
       },
       {
@@ -145,7 +145,7 @@ export const INITIAL_STICKER_PACKS: StickerPack[] = [
         rarity: 'Mythic',
         color: '#f43f5e',
         description: 'Mastery over time itself! Unlocked by true sticker masters.',
-        svgIcon: '/stickers/stk-space-6.webp',
+        svgIcon: './stickers/stk-space-6.webp',
         isCustomImage: true,
       },
     ],
@@ -166,7 +166,7 @@ export const INITIAL_STICKER_PACKS: StickerPack[] = [
         rarity: 'Common',
         color: '#22c55e',
         description: 'The green king of dinosaurs with a giant cheerful grin.',
-        svgIcon: '/stickers/stk-dino-1.webp',
+        svgIcon: './stickers/stk-dino-1.webp',
         isCustomImage: true,
       },
       {
@@ -176,7 +176,7 @@ export const INITIAL_STICKER_PACKS: StickerPack[] = [
         rarity: 'Common',
         color: '#eab308',
         description: 'Millions of years of history frozen in golden honey resin.',
-        svgIcon: '/stickers/stk-dino-2.webp',
+        svgIcon: './stickers/stk-dino-2.webp',
         isCustomImage: true,
       },
       {
@@ -186,7 +186,7 @@ export const INITIAL_STICKER_PACKS: StickerPack[] = [
         rarity: 'Rare',
         color: '#06b6d4',
         description: 'Gentle triceratops with decorated horn guards.',
-        svgIcon: '/stickers/stk-dino-3.webp',
+        svgIcon: './stickers/stk-dino-3.webp',
         isCustomImage: true,
       },
       {
@@ -196,7 +196,7 @@ export const INITIAL_STICKER_PACKS: StickerPack[] = [
         rarity: 'Rare',
         color: '#f97316',
         description: 'Stegosaurus showing off its brilliant back solar plates.',
-        svgIcon: '/stickers/stk-dino-4.webp',
+        svgIcon: './stickers/stk-dino-4.webp',
         isCustomImage: true,
       },
       {
@@ -206,7 +206,7 @@ export const INITIAL_STICKER_PACKS: StickerPack[] = [
         rarity: 'Legendary',
         color: '#a855f7',
         description: 'Gliding high across volcanic Cretaceous clouds.',
-        svgIcon: '/stickers/stk-dino-5.webp',
+        svgIcon: './stickers/stk-dino-5.webp',
         isCustomImage: true,
       },
       {
@@ -216,7 +216,7 @@ export const INITIAL_STICKER_PACKS: StickerPack[] = [
         rarity: 'Mythic',
         color: '#ec4899',
         description: 'Priceless museum centerpiece discovered after a flawless study round!',
-        svgIcon: '/stickers/stk-dino-6.webp',
+        svgIcon: './stickers/stk-dino-6.webp',
         isCustomImage: true,
       },
     ],
@@ -237,7 +237,7 @@ export const INITIAL_STICKER_PACKS: StickerPack[] = [
         rarity: 'Common',
         color: '#ef4444',
         description: 'Red ball arcade stick for lightning-speed reflexes.',
-        svgIcon: '/stickers/stk-math-1.webp',
+        svgIcon: './stickers/stk-math-1.webp',
         isCustomImage: true,
       },
       {
@@ -247,7 +247,7 @@ export const INITIAL_STICKER_PACKS: StickerPack[] = [
         rarity: 'Common',
         color: '#8b5cf6',
         description: 'Critical hit rolled on your epic sticker canvas!',
-        svgIcon: '/stickers/stk-math-2.webp',
+        svgIcon: './stickers/stk-math-2.webp',
         isCustomImage: true,
       },
       {
@@ -257,7 +257,7 @@ export const INITIAL_STICKER_PACKS: StickerPack[] = [
         rarity: 'Rare',
         color: '#10b981',
         description: 'Bonus life granted for maintaining focus and curiosity.',
-        svgIcon: '/stickers/stk-math-3.webp',
+        svgIcon: './stickers/stk-math-3.webp',
         isCustomImage: true,
       },
       {
@@ -267,7 +267,7 @@ export const INITIAL_STICKER_PACKS: StickerPack[] = [
         rarity: 'Rare',
         color: '#3b82f6',
         description: 'Limitless potential unlocked in arithmetic mastery.',
-        svgIcon: '/stickers/stk-math-4.webp',
+        svgIcon: './stickers/stk-math-4.webp',
         isCustomImage: true,
       },
       {
@@ -277,7 +277,7 @@ export const INITIAL_STICKER_PACKS: StickerPack[] = [
         rarity: 'Legendary',
         color: '#f59e0b',
         description: 'Glittering gold cup awarded to top-tier problem solvers.',
-        svgIcon: '/stickers/stk-math-5.webp',
+        svgIcon: './stickers/stk-math-5.webp',
         isCustomImage: true,
       },
       {
@@ -287,7 +287,7 @@ export const INITIAL_STICKER_PACKS: StickerPack[] = [
         rarity: 'Mythic',
         color: '#ec4899',
         description: 'The legendary cabinet containing every retro math game ever coded!',
-        svgIcon: '/stickers/stk-math-6.webp',
+        svgIcon: './stickers/stk-math-6.webp',
         isCustomImage: true,
       },
     ],
@@ -309,7 +309,7 @@ export const INITIAL_STICKER_PACKS: StickerPack[] = [
         rarity: 'Common',
         color: '#6366f1',
         description: 'Common sticker',
-        svgIcon: '/stickers/stk-ocean-1.webp',
+        svgIcon: './stickers/stk-ocean-1.webp',
         isCustomImage: true,
         isUnlocked: true,
       },
@@ -320,7 +320,7 @@ export const INITIAL_STICKER_PACKS: StickerPack[] = [
         rarity: 'Common',
         color: '#6366f1',
         description: 'Common sticker',
-        svgIcon: '/stickers/stk-ocean-2.webp',
+        svgIcon: './stickers/stk-ocean-2.webp',
         isCustomImage: true,
         isUnlocked: true,
       },
