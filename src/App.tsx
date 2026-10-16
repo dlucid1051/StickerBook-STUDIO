@@ -16,79 +16,43 @@ import { X } from 'lucide-react';
 export default function App() {
   const [settings, setSettings] = useState<StudySettings>(() => storage.loadSettings());
 
-  // Removed theme packs
+  // Removed theme packs & old core sticker ID detection
   const REMOVED_PACK_IDS = useMemo(() => new Set(['pack-mythic-beasts', 'pack-cyber', 'pack-botany']), []);
-  const isRemovedSticker = (id?: string) =>
-    id && (id.startsWith('stk-myth-') || id.startsWith('stk-cyber-') || id.startsWith('stk-bot-'));
-
-  // Helper to detect if a cached ocean pack is the legacy version rather than the official replacement
-  const isLegacyOceanPack = (pack?: StickerPack | null) =>
-    pack?.id === 'pack-ocean' &&
-    pack.stickers?.some((s) => s.name === 'Cosmic Jellyfish' || s.id === 'stk-ocean-6');
+  const isOldCoreSticker = (id?: string) =>
+    id &&
+    (id.startsWith('stk-space-') ||
+      id.startsWith('stk-dino-') ||
+      id.startsWith('stk-math-') ||
+      id.startsWith('stk-ocean-') ||
+      id.startsWith('stk-cyber-') ||
+      id.startsWith('stk-myth-') ||
+      id.startsWith('stk-bot-'));
 
   // Sticker Packs & Custom Canvas Scenes
   const [customPacks, setCustomPacks] = useState<StickerPack[]>(() => {
     const raw = storage.loadCustomPacks();
-    const list = raw
+    return raw
       .filter((p) => p && p.id && !REMOVED_PACK_IDS.has(p.id))
-      .map((p) => {
-        if (p.id === 'pack-ocean' && isLegacyOceanPack(p)) {
-          const factory = INITIAL_STICKER_PACKS.find((f) => f.id === 'pack-ocean');
-          return factory ? JSON.parse(JSON.stringify(factory)) : p;
-        }
-        return p;
-      });
-    const hasOcean = list.some((p) => p.id === 'pack-ocean');
-    if (!hasOcean) {
-      const permOcean = storage.loadPermanentOceanPack();
-      if (permOcean && !isLegacyOceanPack(permOcean)) {
-        list.push(permOcean);
-      } else {
-        const factory = INITIAL_STICKER_PACKS.find((f) => f.id === 'pack-ocean');
-        if (factory) list.push(JSON.parse(JSON.stringify(factory)));
-      }
-    }
-    return list;
+      .map((p) => ({
+        ...p,
+        stickers: (p.stickers || []).filter((s) => !isOldCoreSticker(s.id)),
+      }));
   });
 
   const [customScenes, setCustomScenes] = useState<CanvasScene[]>(() => {
     const raw = storage.loadCustomScenes();
-    const list = raw.filter((s) => s && s.id);
-    const hasOceanScene = list.some((s) => s.id === 'scene-ocean');
-    if (!hasOceanScene) {
-      const permOceanScene = storage.loadPermanentOceanScene();
-      if (permOceanScene) list.push(permOceanScene);
-    }
-    return list;
+    return raw.filter((s) => s && s.id);
   });
 
   const [placedStickers, setPlacedStickers] = useState<PlacedSticker[]>(() =>
-    storage.loadPlacedStickers().filter((p) => !isRemovedSticker(p.stickerId))
+    storage.loadPlacedStickers().filter((p) => !isOldCoreSticker(p.stickerId))
   );
 
-  // Automatically ensure any current Ocean customization is captured as the permanent default
-  useEffect(() => {
-    const oceanPack = customPacks.find((p) => p.id === 'pack-ocean');
-    if (oceanPack && !isLegacyOceanPack(oceanPack)) {
-      storage.savePermanentOceanPack(oceanPack);
-    }
-    const oceanScene = customScenes.find((s) => s.id === 'scene-ocean');
-    if (oceanScene) {
-      storage.savePermanentOceanScene(oceanScene);
-    }
-  }, [customPacks, customScenes]);
-
-  // All packs: Built-in packs are primary, merged with user-edited core overrides; custom packs are appended
+  // All packs: Built-in packs have their official definitions; custom packs are appended
   const packs = useMemo(() => {
     const builtInIds = new Set(INITIAL_STICKER_PACKS.map((p) => p.id));
-    const isCoreSticker = (id?: string) =>
-      id &&
-      (id.startsWith('stk-space-') ||
-        id.startsWith('stk-dino-') ||
-        id.startsWith('stk-math-') ||
-        id.startsWith('stk-ocean-'));
 
-    // Check if any core packs have user overrides from Studio editing or permanent defaults
+    // Core packs start with 0 core stickers (ready for the revamp), plus any custom-minted stickers from studio
     const coreOverrides = new Map(
       customPacks
         .filter((cp) => cp && cp.id && builtInIds.has(cp.id))
@@ -96,36 +60,22 @@ export default function App() {
     );
 
     const mergedBuiltIns = INITIAL_STICKER_PACKS.map((core) => {
-      let override = coreOverrides.get(core.id);
-      if (core.id === 'pack-ocean') {
-        if (override && isLegacyOceanPack(override)) {
-          override = undefined;
-        }
-        if (!override) {
-          const perm = storage.loadPermanentOceanPack();
-          if (perm && !isLegacyOceanPack(perm)) {
-            override = perm;
-          }
-        }
-      }
-      return override ? { ...core, ...override, isCustom: false } : core;
+      const override = coreOverrides.get(core.id);
+      if (!override) return core;
+      return {
+        ...core,
+        ...override,
+        stickers: (override.stickers || []).filter((s) => !isOldCoreSticker(s.id)),
+        isCustom: false,
+      };
     });
 
     const validCustom = customPacks
       .filter((cp) => cp && cp.id && !builtInIds.has(cp.id) && !REMOVED_PACK_IDS.has(cp.id))
-      .map((cp) => {
-        // Self-heal any legacy custom packs that previously retained built-in sticker IDs
-        const hasCoreIds = cp.stickers.some((s) => isCoreSticker(s.id));
-        if (!hasCoreIds) return cp;
-        return {
-          ...cp,
-          stickers: cp.stickers.map((s, idx) => ({
-            ...s,
-            id: isCoreSticker(s.id) ? `stk-${cp.id}-${idx + 1}` : s.id,
-            packId: cp.id,
-          })),
-        };
-      });
+      .map((cp) => ({
+        ...cp,
+        stickers: (cp.stickers || []).filter((s) => !isOldCoreSticker(s.id)),
+      }));
 
     return [...mergedBuiltIns, ...validCustom];
   }, [customPacks]);
@@ -171,10 +121,10 @@ export default function App() {
       // Merge placed stickers safely across IndexedDB and LocalStorage (local storage has most immediate real-time coordinates)
       const placedMap = new Map<string, PlacedSticker>();
       for (const p of idbPlaced) {
-        if (p?.id && !isRemovedSticker(p.stickerId)) placedMap.set(p.id, p);
+        if (p?.id && !isOldCoreSticker(p.stickerId)) placedMap.set(p.id, p);
       }
       for (const p of localPlaced) {
-        if (p?.id && !isRemovedSticker(p.stickerId)) placedMap.set(p.id, p);
+        if (p?.id && !isOldCoreSticker(p.stickerId)) placedMap.set(p.id, p);
       }
       const cleanedPlaced = Array.from(placedMap.values());
       if (cleanedPlaced.length > 0 && !isCancelled) {
@@ -210,18 +160,14 @@ export default function App() {
       const packMap = new Map<string, StickerPack>();
       for (const pk of [...idbPacks, ...localPacks]) {
         if (!pk?.id || REMOVED_PACK_IDS.has(pk.id)) continue;
-        if (pk.id === 'pack-ocean' && isLegacyOceanPack(pk)) {
-          continue;
-        }
+        const cleanedPack: StickerPack = {
+          ...pk,
+          stickers: (pk.stickers || []).filter((s) => !isOldCoreSticker(s.id)),
+        };
         const existing = packMap.get(pk.id);
-        if (!existing || (pk.stickers?.length || 0) >= (existing.stickers?.length || 0)) {
-          packMap.set(pk.id, pk);
+        if (!existing || cleanedPack.stickers.length >= existing.stickers.length) {
+          packMap.set(pk.id, cleanedPack);
         }
-      }
-
-      if (!packMap.has('pack-ocean')) {
-        const factory = INITIAL_STICKER_PACKS.find((f) => f.id === 'pack-ocean');
-        if (factory) packMap.set('pack-ocean', JSON.parse(JSON.stringify(factory)));
       }
 
       const mergedPacks = Array.from(packMap.values());
@@ -295,10 +241,6 @@ export default function App() {
     setCustomPacks(updatedPacks);
     storage.saveCustomPacks(updatedPacks);
 
-    if (pack.id === 'pack-ocean') {
-      storage.savePermanentOceanPack(pack);
-    }
-
     if (themeScene) {
       const existingSceneIndex = customScenes.findIndex((s) => s.id === themeScene.id);
       let updatedScenes: CanvasScene[];
@@ -311,9 +253,11 @@ export default function App() {
 
       setCustomScenes(updatedScenes);
       storage.saveCustomScenes(updatedScenes);
-
-      if (themeScene.id === 'scene-ocean') {
-        storage.savePermanentOceanScene(themeScene);
+    } else if (pack.themeSceneId === undefined) {
+      const updatedScenes = customScenes.filter((s) => s.packId !== pack.id);
+      if (updatedScenes.length !== customScenes.length) {
+        setCustomScenes(updatedScenes);
+        storage.saveCustomScenes(updatedScenes);
       }
     }
   };
@@ -358,17 +302,6 @@ export default function App() {
   };
 
   const handleResetProgress = () => {
-    // 0. Safeguard current Ocean core theme pack and scene customization as permanent defaults
-    const currentOceanPack =
-      (!isLegacyOceanPack(customPacks.find((p) => p.id === 'pack-ocean')) ? customPacks.find((p) => p.id === 'pack-ocean') : null) ||
-      (!isLegacyOceanPack(storage.loadPermanentOceanPack()) ? storage.loadPermanentOceanPack() : null) ||
-      INITIAL_STICKER_PACKS.find((p) => p.id === 'pack-ocean');
-
-    const currentOceanScene =
-      customScenes.find((s) => s.id === 'scene-ocean') ||
-      storage.loadPermanentOceanScene() ||
-      storage.loadCustomScenes().find((s) => s.id === 'scene-ocean');
-
     // 1. Wipe IndexedDB and memory runtime caches
     idbClearAll().catch(() => {});
 
@@ -382,23 +315,17 @@ export default function App() {
     // 3. Clear all backdrop saturation, brightness, and contrast adjustments
     storage.clearBackdropAdjustments();
 
-    // 4. Persist pristine installation defaults while preserving the permanent Ocean theme defaults
+    // 4. Persist pristine installation defaults
     storage.saveSettings(DEFAULT_SETTINGS);
     storage.saveCanvasSceneId('scene-notebook');
     storage.savePlacedStickers([]);
+    storage.saveCustomPacks([]);
+    storage.saveCustomScenes([]);
 
-    const resetPacks = currentOceanPack ? [currentOceanPack] : [];
-    const resetScenes = currentOceanScene ? [currentOceanScene] : [];
-
-    storage.saveCustomPacks(resetPacks);
-    storage.saveCustomScenes(resetScenes);
-    if (currentOceanPack) storage.savePermanentOceanPack(currentOceanPack);
-    if (currentOceanScene) storage.savePermanentOceanScene(currentOceanScene);
-
-    // 5. Return app to first-open installation state with permanent Ocean defaults intact
+    // 5. Return app to clean installation state
     setSettings(DEFAULT_SETTINGS);
-    setCustomPacks(resetPacks);
-    setCustomScenes(resetScenes);
+    setCustomPacks([]);
+    setCustomScenes([]);
     setPlacedStickers([]);
     setResetNonce((prev) => prev + 1);
 

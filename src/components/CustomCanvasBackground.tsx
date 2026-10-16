@@ -1,6 +1,5 @@
 import React from 'react';
 import { CustomBackgroundConfig } from '../types';
-import { sanitizeSvgMarkup } from '../lib/sanitizeSvg';
 import { resolvePublicAsset } from '../lib/assetPath';
 
 interface CustomCanvasBackgroundProps {
@@ -19,35 +18,8 @@ export const CustomCanvasBackground: React.FC<CustomCanvasBackgroundProps> = ({
   if (!config) return null;
 
   const effectiveImageUrl = config.imageUrl || config.backgroundImageUrl || (config as any).image || (config as any).url;
-  const effectiveSvgMarkup = config.svgMarkup || (config as any).svg;
 
-  // 1. If explicitly SVG, render SVG
-  if (config.type === 'svg' && effectiveSvgMarkup) {
-    const cleanMarkup = sanitizeSvgMarkup(effectiveSvgMarkup);
-    const filterParts: string[] = [];
-    if (typeof saturationOverride === 'number' && saturationOverride !== 100) {
-      filterParts.push(`saturate(${saturationOverride}%)`);
-    }
-    if (typeof brightnessOverride === 'number' && brightnessOverride !== 100) {
-      filterParts.push(`brightness(${brightnessOverride}%)`);
-    }
-    if (typeof contrastOverride === 'number' && contrastOverride !== 100) {
-      filterParts.push(`contrast(${contrastOverride}%)`);
-    }
-    return (
-      <div
-        data-canvas-bg="true"
-        className="absolute inset-0 pointer-events-none overflow-hidden select-none [&>svg]:w-full [&>svg]:h-full [&>svg]:absolute [&>svg]:inset-0"
-        style={{
-          filter: filterParts.length > 0 ? filterParts.join(' ') : undefined,
-        }}
-        dangerouslySetInnerHTML={{ __html: cleanMarkup }}
-      />
-    );
-  }
-
-  // 2. If image is available and config is not SVG
-  if (effectiveImageUrl && config.type !== 'svg') {
+  if (effectiveImageUrl) {
     const opacity = (config.opacity ?? 100) / 100;
     const dimming = (config.dimming ?? 0) / 100;
     const blurPx = config.blur ?? 0;
@@ -139,17 +111,6 @@ export const CustomCanvasBackground: React.FC<CustomCanvasBackgroundProps> = ({
           />
         )}
       </div>
-    );
-  }
-
-  if (effectiveSvgMarkup) {
-    const cleanMarkup = sanitizeSvgMarkup(effectiveSvgMarkup);
-    return (
-      <div
-        data-canvas-bg="true"
-        className="absolute inset-0 pointer-events-none overflow-hidden select-none [&>svg]:w-full [&>svg]:h-full [&>svg]:absolute [&>svg]:inset-0"
-        dangerouslySetInnerHTML={{ __html: cleanMarkup }}
-      />
     );
   }
 

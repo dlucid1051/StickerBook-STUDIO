@@ -7,13 +7,9 @@ import {
   StickerRarity, 
   VaultPackFile 
 } from '../types';
-import { 
-  SVG_BACKGROUND_TEMPLATES, 
-  getCoreThemeBackdrop, 
-  CORE_THEME_BACKDROPS 
-} from '../data/svgBackgroundTemplates';
-import { exportVaultPack, parseVaultPackJSON, storage } from '../lib/io';
-import { exportPackAsPngZip, exportAllCorePacksAsZip } from '../lib/packZipExporter';
+import { parseVaultPackJSON, storage } from '../lib/io';
+import { exportPackAsPngZip } from '../lib/packZipExporter';
+import { parsePackZip } from '../lib/packZipImporter';
 import { optimizeImageDataUrl, trimAndMaximizeStickerImage } from '../lib/imageOptimizer';
 import { sounds } from '../lib/sound';
 import { StickerIconRenderer } from './StickerIconRenderer';
@@ -41,10 +37,13 @@ import {
   FolderDown,
   FolderArchive,
   FileCheck,
+  FileText,
   GraduationCap,
   Save,
   CheckCircle2,
-  Maximize2
+  Maximize2,
+  Filter,
+  Pencil
 } from 'lucide-react';
 
 interface ThemeAndPackManagerModalProps {
@@ -105,7 +104,7 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
   const [packStickers, setPackStickers] = useState<Sticker[]>([]);
 
   // Background Studio State
-  const [bgType, setBgType] = useState<'image' | 'svg'>('image');
+  const [includeBackdrop, setIncludeBackdrop] = useState<boolean>(true);
   const [bgImageUrl, setBgImageUrl] = useState('');
   const [bgOpacity, setBgOpacity] = useState(100);
   const [bgDimming, setBgDimming] = useState(20);
@@ -113,8 +112,6 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
   const [bgFitMode, setBgFitMode] = useState<'cover' | 'contain' | 'center'>('cover');
   const [bgGridOverlay, setBgGridOverlay] = useState<'none' | 'dots' | 'lines' | 'isometric'>('none');
   const [bgOverlayColor, setBgOverlayColor] = useState('#0f172a');
-  const [bgSvgMarkup, setBgSvgMarkup] = useState(SVG_BACKGROUND_TEMPLATES[0].svgMarkup);
-  const [selectedTemplateId, setSelectedTemplateId] = useState(SVG_BACKGROUND_TEMPLATES[0].id);
 
   // New Sticker Form State
   const [stickerInputType, setStickerInputType] = useState<'emoji' | 'image'>('emoji');
@@ -129,9 +126,14 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
   const [importPreview, setImportPreview] = useState<VaultPackFile | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [isReadingFile, setIsReadingFile] = useState(false);
+  const [readingFileStatus, setReadingFileStatus] = useState<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [pasteJsonText, setPasteJsonText] = useState('');
   const [showPasteBox, setShowPasteBox] = useState(false);
+  const [showLegacyImport, setShowLegacyImport] = useState(false);
+  const [isImportingFormat, setIsImportingFormat] = useState<'zip' | 'legacy-json'>('zip');
+  const [multiPackBundle, setMultiPackBundle] = useState<VaultPackFile[] | null>(null);
+  const [selectedBundlePackIdx, setSelectedBundlePackIdx] = useState<number>(0);
 
   // Selected Sticker in Editor Draft
   const [selectedDraftStickerId, setSelectedDraftStickerId] = useState<string | null>(null);
@@ -141,7 +143,6 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
 
   // PNG Zip Export State
   const [isExportingZipId, setIsExportingZipId] = useState<string | null>(null);
-  const [isExportingAllZip, setIsExportingAllZip] = useState(false);
   const [exportProgressText, setExportProgressText] = useState<string | null>(null);
   const [exportSuccessMsg, setExportSuccessMsg] = useState<string | null>(null);
 
@@ -150,6 +151,7 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
 
   // File Input Refs
   const importFileInputRef = useRef<HTMLInputElement>(null);
+  const legacyJsonFileInputRef = useRef<HTMLInputElement>(null);
   const imageBgFileInputRef = useRef<HTMLInputElement>(null);
   const stickerImageFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -170,6 +172,9 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
       setSelectedDraftStickerId(null);
       setTargetScrollPackId(null);
       setHighlightedPackId(null);
+      setShowLegacyImport(false);
+      setMultiPackBundle(null);
+      setIsImportingFormat('zip');
     }
   }, [isOpen]);
 
@@ -255,13 +260,13 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
     setEditingSceneId(null);
     setSelectedDraftStickerId(null);
     setPackKind('combo');
+    setIncludeBackdrop(true);
     setPackName('');
     setPackAuthor('');
     setPackTheme('Custom World');
     setPackDescription('A custom themed sticker pack & backdrop');
     setPackIcon('🌟');
     setPackStickers([]);
-    setBgType('image');
     setBgImageUrl('');
     setBgOpacity(100);
     setBgDimming(20);
@@ -269,7 +274,6 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
     setBgFitMode('cover');
     setBgGridOverlay('none');
     setBgOverlayColor('#0f172a');
-    setBgSvgMarkup(SVG_BACKGROUND_TEMPLATES[0].svgMarkup);
     setActiveTab('create');
   };
 
@@ -314,37 +318,19 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
       );
     setEditingSceneId(linkedScene ? linkedScene.id : (pack.themeSceneId || null));
 
-    if (linkedScene && pack.stickers.length > 0) {
+    const hasBackdrop = !!linkedScene;
+    setIncludeBackdrop(hasBackdrop);
+    if (hasBackdrop && pack.stickers.length > 0) {
       setPackKind('combo');
-    } else if (linkedScene && pack.stickers.length === 0) {
+    } else if (hasBackdrop && pack.stickers.length === 0) {
       setPackKind('background-only');
     } else {
       setPackKind('stickers-only');
     }
 
-    // Resolve companion backdrop info (check customConfig, or fallback to core theme backdrops)
-    const coreBackdrop =
-      getCoreThemeBackdrop(linkedScene?.id) ||
-      getCoreThemeBackdrop(pack.themeSceneId) ||
-      getCoreThemeBackdrop(pack.id) ||
-      getCoreThemeBackdrop(linkedScene?.pattern) ||
-      getCoreThemeBackdrop(linkedScene?.customConfig?.presetTemplate) ||
-      getCoreThemeBackdrop(pack.theme) ||
-      getCoreThemeBackdrop(pack.name) ||
-      getCoreThemeBackdrop(linkedScene?.name) ||
-      getCoreThemeBackdrop(linkedScene?.theme);
+    const effectiveConfig: CustomBackgroundConfig | undefined = linkedScene?.customConfig;
 
-    const effectiveConfig: CustomBackgroundConfig | undefined =
-      linkedScene?.customConfig ||
-      (coreBackdrop
-        ? {
-            type: 'svg',
-            presetTemplate: coreBackdrop.templateId,
-            svgMarkup: coreBackdrop.svgMarkup,
-          }
-        : undefined);
-
-    // 1. Detect image content
+    // Detect image content
     const rawImageUrl =
       effectiveConfig?.imageUrl ||
       effectiveConfig?.backgroundImageUrl ||
@@ -352,34 +338,6 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
       (effectiveConfig as any)?.url ||
       (linkedScene as any)?.imageUrl ||
       '';
-    const hasValidImage = typeof rawImageUrl === 'string' && rawImageUrl.trim().length > 0;
-
-    // 2. Detect SVG markup or preset
-    const rawSvgMarkup =
-      effectiveConfig?.svgMarkup ||
-      (effectiveConfig as any)?.svg ||
-      (linkedScene as any)?.svgMarkup ||
-      '';
-    const hasValidSvg = (typeof rawSvgMarkup === 'string' && rawSvgMarkup.trim().length > 0) || !!effectiveConfig?.presetTemplate || !!coreBackdrop;
-
-    // 3. Resolve backdrop editor default:
-    // When valid image data exists, always default to the Image Wallpaper & Adjuster view
-    let resolvedBackdropType: 'image' | 'svg' = 'image';
-
-    if (hasValidImage) {
-      resolvedBackdropType = 'image';
-    } else if (
-      effectiveConfig?.type === 'svg' ||
-      linkedScene?.pattern === 'custom-svg' ||
-      hasValidSvg ||
-      coreBackdrop
-    ) {
-      resolvedBackdropType = 'svg';
-    } else {
-      resolvedBackdropType = 'image';
-    }
-
-    setBgType(resolvedBackdropType);
 
     setBgImageUrl(rawImageUrl || '');
     setBgOpacity(typeof effectiveConfig?.opacity === 'number' && !isNaN(effectiveConfig.opacity) ? effectiveConfig.opacity : 100);
@@ -388,21 +346,6 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
     setBgFitMode(effectiveConfig?.fitMode || 'cover');
     setBgGridOverlay(effectiveConfig?.gridOverlay || 'none');
     setBgOverlayColor(effectiveConfig?.overlayColor || '#0f172a');
-    setBgSvgMarkup(
-      rawSvgMarkup ||
-      (coreBackdrop ? coreBackdrop.svgMarkup : SVG_BACKGROUND_TEMPLATES[0].svgMarkup)
-    );
-    if (effectiveConfig?.presetTemplate) {
-      setSelectedTemplateId(effectiveConfig.presetTemplate);
-    } else if (coreBackdrop) {
-      setSelectedTemplateId(coreBackdrop.templateId);
-    } else {
-      setSelectedTemplateId(SVG_BACKGROUND_TEMPLATES[0].id);
-    }
-
-    if (coreBackdrop && (!pack.theme || pack.theme.toLowerCase() === 'custom')) {
-      setPackTheme(coreBackdrop.shortLabel);
-    }
     setActiveTab('create');
   };
 
@@ -428,17 +371,6 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
           (pack.name && s.name.toLowerCase() === pack.name.toLowerCase()) ||
           (pack.theme && s.theme && pack.theme.toLowerCase() === pack.theme.toLowerCase())
       );
-    const coreBackdrop =
-      getCoreThemeBackdrop(linkedScene?.id) ||
-      getCoreThemeBackdrop(pack.themeSceneId) ||
-      getCoreThemeBackdrop(pack.id) ||
-      getCoreThemeBackdrop(linkedScene?.pattern) ||
-      getCoreThemeBackdrop(linkedScene?.customConfig?.presetTemplate) ||
-      getCoreThemeBackdrop(pack.theme) ||
-      getCoreThemeBackdrop(pack.name) ||
-      getCoreThemeBackdrop(linkedScene?.name) ||
-      getCoreThemeBackdrop(linkedScene?.theme);
-    
     const clonedStickers: Sticker[] = pack.stickers.map((s, idx) => ({
       ...s,
       id: `stk-${Date.now()}-${idx}`,
@@ -447,38 +379,16 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
     }));
 
     let clonedScene: CanvasScene | undefined = undefined;
-    if (linkedScene || coreBackdrop) {
-      const isImage = !!(
-        linkedScene?.customConfig?.imageUrl?.trim() ||
-        linkedScene?.customConfig?.backgroundImageUrl?.trim() ||
-        linkedScene?.pattern === 'custom-image'
-      );
-
-      const customConfig: CustomBackgroundConfig = linkedScene?.customConfig
+    if (linkedScene) {
+      const customConfig: CustomBackgroundConfig | undefined = linkedScene.customConfig
         ? {
             ...linkedScene.customConfig,
-            type: linkedScene.customConfig.type || (isImage ? 'image' : 'svg'),
+            type: 'image',
           }
-        : coreBackdrop
-        ? {
-            type: 'svg',
-            presetTemplate: coreBackdrop.templateId,
-            svgMarkup: coreBackdrop.svgMarkup,
-          }
-        : {
-            type: 'svg',
-            svgMarkup: SVG_BACKGROUND_TEMPLATES[0].svgMarkup,
-          };
+        : undefined;
 
-      const sceneName = coreBackdrop
-        ? `${coreBackdrop.name} (Copy)`
-        : linkedScene
-        ? `${linkedScene.name} (Copy)`
-        : `${pack.name} (Copy) Theme`;
-
-      const themeTag = coreBackdrop
-        ? coreBackdrop.shortLabel
-        : (linkedScene?.theme || pack.theme || 'Custom Theme');
+      const sceneName = `${linkedScene.name} (Copy)`;
+      const themeTag = linkedScene.theme || pack.theme || 'Custom Theme';
 
       clonedScene = {
         ...(linkedScene || {}),
@@ -486,16 +396,14 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
         name: sceneName,
         theme: themeTag,
         bgGradient: linkedScene?.bgGradient || 'bg-slate-950',
-        pattern: isImage ? 'custom-image' : 'custom-svg',
+        pattern: 'custom-image',
         isCustom: true,
         packId: newPackId,
         customConfig,
       };
     }
 
-    const effectiveTheme = coreBackdrop
-      ? coreBackdrop.shortLabel
-      : (pack.theme || 'Custom Theme');
+    const effectiveTheme = pack.theme || 'Custom Theme';
 
     const clonedPack: StickerPack = {
       ...pack,
@@ -731,9 +639,9 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
 
     let sceneToSave: CanvasScene | undefined = undefined;
 
-    if (packKind === 'combo' || packKind === 'background-only') {
+    if (includeBackdrop) {
       let finalImageUrl = bgImageUrl;
-      if (bgType === 'image' && bgImageUrl) {
+      if (bgImageUrl) {
         try {
           finalImageUrl = await optimizeImageDataUrl(bgImageUrl, 1920, 1080, 0.82, 'image/jpeg');
         } catch {
@@ -741,22 +649,16 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
         }
       }
 
-      const customConfig: CustomBackgroundConfig = bgType === 'image'
-        ? {
-            type: 'image',
-            imageUrl: finalImageUrl,
-            opacity: bgOpacity,
-            dimming: bgDimming,
-            blur: bgBlur,
-            fitMode: bgFitMode,
-            gridOverlay: bgGridOverlay,
-            overlayColor: bgOverlayColor,
-          }
-        : {
-            type: 'svg',
-            svgMarkup: bgSvgMarkup,
-            presetTemplate: selectedTemplateId,
-          };
+      const customConfig: CustomBackgroundConfig = {
+        type: 'image',
+        imageUrl: finalImageUrl,
+        opacity: bgOpacity,
+        dimming: bgDimming,
+        blur: bgBlur,
+        fitMode: bgFitMode,
+        gridOverlay: bgGridOverlay,
+        overlayColor: bgOverlayColor,
+      };
 
       // Use Theme Tag as caption text; if not set or blank, fall back to Pack Name
       const effectiveThemeTag = packTheme.trim();
@@ -766,52 +668,23 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
         id: sceneId,
         name: sceneDisplayName,
         theme: effectiveThemeTag || effectivePackName,
-        bgGradient: bgType === 'image' ? 'bg-slate-950' : 'bg-slate-900',
-        pattern: bgType === 'image' ? 'custom-image' : 'custom-svg',
+        bgGradient: 'bg-slate-950',
+        pattern: 'custom-image',
         isCustom: !isEditingBuiltIn,
         author: packAuthor.trim() || (isEditingBuiltIn ? 'StickerBook STUDIO' : 'You'),
         customConfig,
         packId,
       };
     } else {
-      // packKind === 'stickers-only'
-      const effectiveThemeTag = packTheme.trim();
-      const sceneDisplayName = effectiveThemeTag || effectivePackName;
-      if (linkedScene) {
-        sceneToSave = {
-          ...linkedScene,
-          id: linkedScene.id || sceneId,
-          name: sceneDisplayName,
-          theme: effectiveThemeTag || effectivePackName,
-          isCustom: !isEditingBuiltIn,
-          packId,
-        };
-      } else {
-        sceneToSave = {
-          id: sceneId,
-          name: sceneDisplayName,
-          theme: effectiveThemeTag || effectivePackName,
-          bgGradient: 'bg-slate-950',
-          pattern: 'custom-svg',
-          isCustom: !isEditingBuiltIn,
-          author: packAuthor.trim() || (isEditingBuiltIn ? 'StickerBook STUDIO' : 'You'),
-          customConfig: {
-            type: 'svg',
-            svgMarkup: `<svg viewBox="0 0 1000 500" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="amb-${packId}" cx="50%" cy="30%" r="70%"><stop offset="0%" stop-color="#1e1b4b" stop-opacity="0.9" /><stop offset="60%" stop-color="#0f172a" stop-opacity="0.95" /><stop offset="100%" stop-color="#020617" stop-opacity="1" /></radialGradient></defs><rect width="1000" height="500" fill="url(#amb-${packId})" /><circle cx="820" cy="110" r="45" fill="#fef08a" opacity="0.85" /><circle cx="805" cy="100" r="42" fill="#0f172a" opacity="0.9" /></svg>`,
-          },
-          packId,
-        };
-      }
+      sceneToSave = undefined;
     }
 
-    const stickersToSave: Sticker[] = (packKind === 'background-only')
-      ? []
-      : packStickers.map((s, idx) => ({
-          ...s,
-          id: s.id || `stk-${packId}-${idx + 1}`,
-          packId,
-          isUnlocked: true,
-        }));
+    const stickersToSave: Sticker[] = packStickers.map((s, idx) => ({
+      ...s,
+      id: s.id || `stk-${packId}-${idx + 1}`,
+      packId,
+      isUnlocked: true,
+    }));
 
     const packToSave: StickerPack = {
       id: packId,
@@ -835,73 +708,7 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
     setTargetScrollPackId(packId);
   };
 
-  // Single Pack Export Handler
-  const handleExportSinglePack = async (pack: StickerPack) => {
-    sounds.playPop();
-    let companionScene =
-      (pack.themeSceneId ? scenes.find((s) => s.id === pack.themeSceneId) : undefined) ||
-      scenes.find((s) => s.packId === pack.id) ||
-      (pack.themeSceneId ? storage.loadCustomScenes().find((s) => s.id === pack.themeSceneId) : undefined) ||
-      storage.loadCustomScenes().find((s) => s.packId === pack.id) ||
-      scenes.find(
-        (s) =>
-          (pack.name && s.name.toLowerCase() === pack.name.toLowerCase()) ||
-          (pack.theme && s.theme && pack.theme.toLowerCase() === pack.theme.toLowerCase())
-      ) ||
-      storage.loadCustomScenes().find(
-        (s) =>
-          (pack.name && s.name.toLowerCase() === pack.name.toLowerCase()) ||
-          (pack.theme && s.theme && pack.theme.toLowerCase() === pack.theme.toLowerCase())
-      );
-    const coreBackdrop =
-      getCoreThemeBackdrop(companionScene?.id) ||
-      getCoreThemeBackdrop(pack.themeSceneId) ||
-      getCoreThemeBackdrop(pack.id) ||
-      getCoreThemeBackdrop(companionScene?.pattern) ||
-      getCoreThemeBackdrop(companionScene?.customConfig?.presetTemplate) ||
-      getCoreThemeBackdrop(pack.theme) ||
-      getCoreThemeBackdrop(pack.name) ||
-      getCoreThemeBackdrop(companionScene?.name) ||
-      getCoreThemeBackdrop(companionScene?.theme);
 
-    if (!companionScene || !companionScene.customConfig) {
-      if (coreBackdrop) {
-        companionScene = {
-          ...(companionScene || {}),
-          id: pack.themeSceneId || `scene-custom-${pack.id}`,
-          name: coreBackdrop.name,
-          theme: coreBackdrop.shortLabel,
-          bgGradient: 'bg-slate-950',
-          pattern: 'custom-svg',
-          isCustom: true,
-          author: pack.author || 'StickerBook STUDIO',
-          customConfig: {
-            type: 'svg',
-            presetTemplate: coreBackdrop.templateId,
-            svgMarkup: coreBackdrop.svgMarkup,
-          },
-          packId: pack.id,
-        };
-      } else if (!companionScene) {
-        const themeTitle = pack.theme && pack.theme.toLowerCase() !== 'custom' ? pack.theme : pack.name;
-        companionScene = {
-          id: pack.themeSceneId || `custom-scene-${pack.id}`,
-          name: themeTitle,
-          theme: themeTitle,
-          bgGradient: 'bg-slate-950',
-          pattern: 'custom-svg',
-          isCustom: true,
-          author: pack.author || 'You',
-          customConfig: {
-            type: 'svg',
-            svgMarkup: SVG_BACKGROUND_TEMPLATES[0].svgMarkup,
-          },
-          packId: pack.id,
-        };
-      }
-    }
-    await exportVaultPack(pack, companionScene);
-  };
 
   // Single Pack PNG Zip Export Handler
   const handleExportPackPngZip = async (pack: StickerPack) => {
@@ -932,29 +739,6 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
     }
   };
 
-  // Export All Core Theme Packs as Master Zip Handler
-  const handleExportAllCorePacksZip = async () => {
-    sounds.playPop();
-    setIsExportingAllZip(true);
-    setExportProgressText('Preparing Core Theme Packs master archive...');
-    setExportSuccessMsg(null);
-
-    const corePacks = packs.filter((p) => !p.isCustom);
-    try {
-      await exportAllCorePacksAsZip(corePacks, scenes, (packIdx, totalPacks, packName) => {
-        setExportProgressText(`Packaging pack ${packIdx}/${totalPacks}: ${packName}...`);
-      });
-      sounds.playCorrect();
-      setExportSuccessMsg(`Successfully exported all ${corePacks.length} Core Theme Packs as a master .zip archive with transparent .png images!`);
-      setTimeout(() => setExportSuccessMsg(null), 7000);
-    } catch (err) {
-      console.error('Failed to export all core packs as zip:', err);
-      setValidationError('Failed to export core theme packs archive. Please try again.');
-    } finally {
-      setIsExportingAllZip(false);
-      setExportProgressText(null);
-    }
-  };
 
   // Process raw imported JSON text (used by file upload, drag-and-drop, and direct paste)
   const processImportContent = async (content: string) => {
@@ -994,22 +778,47 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
     }
   };
 
-  // Robust file reader supporting local disk, Google Drive virtual streams, arrayBuffer, and text
+  // Robust file reader supporting ZIP archives (Primary branded model), as well as legacy text/JSON
   const processImportFile = async (file: File) => {
     if (!file) return;
 
     setIsReadingFile(true);
+    setReadingFileStatus('Reading pack archive...');
     setImportError(null);
     setImportPreview(null);
+    setMultiPackBundle(null);
 
     try {
-      // Guard against giant files
-      if (file.size > 30 * 1024 * 1024) {
-        setImportError('File size exceeds 30MB. Please choose a smaller sticker pack file.');
+      // Guard against giant files (> 60MB)
+      if (file.size > 60 * 1024 * 1024) {
+        setImportError('File size exceeds 60MB. Please choose a smaller sticker pack archive.');
         setIsReadingFile(false);
+        setReadingFileStatus(null);
         return;
       }
 
+      const lowerName = file.name.toLowerCase();
+      const isZip = lowerName.endsWith('.zip') || file.type.includes('zip') || file.type === 'application/x-zip-compressed';
+
+      if (isZip) {
+        setReadingFileStatus('Extracting stickers and theme textures from .zip...');
+        const zipResult = await parsePackZip(file);
+        setIsImportingFormat('zip');
+        if (zipResult.isBundle && zipResult.allPacks && zipResult.allPacks.length > 0) {
+          setMultiPackBundle(zipResult.allPacks);
+          setSelectedBundlePackIdx(0);
+          setImportPreview(zipResult.allPacks[0]);
+        } else {
+          setImportPreview(zipResult.mainPack);
+          setMultiPackBundle(null);
+        }
+        sounds.playPop();
+        return;
+      }
+
+      // Legacy fallback: reading text / JSON
+      setReadingFileStatus('Reading legacy JSON file...');
+      setIsImportingFormat('legacy-json');
       let content = '';
 
       // Tier 1: Try modern file.text()
@@ -1036,7 +845,7 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
         }
       }
 
-      // Tier 3: Try file.arrayBuffer() with TextDecoder (handles Google Drive virtual files and binary streams)
+      // Tier 3: Try file.arrayBuffer() with TextDecoder
       if (!content && typeof file.arrayBuffer === 'function') {
         try {
           const buffer = await file.arrayBuffer();
@@ -1048,22 +857,33 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
       }
 
       if (!content || !content.trim()) {
-        setImportError('Could not read file from Google Drive. Please ensure the file is downloaded to your device, or paste its JSON text directly below.');
-        setIsReadingFile(false);
+        setImportError('Could not read file contents. Please verify the file is not empty.');
         return;
       }
 
       await processImportContent(content);
     } catch (err: any) {
       console.error('Failed to process file:', err);
-      setImportError(`Unable to read file: ${err?.message || 'Cloud storage read error'}. You can also paste the JSON content directly.`);
+      setImportError(`Unable to read pack: ${err?.message || 'File format error'}.`);
     } finally {
       setIsReadingFile(false);
+      setReadingFileStatus(null);
     }
   };
 
-  // Handle Import File Selection from file picker
+  // Handle Import File Selection from file picker (Primary ZIP)
   const handleImportFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await processImportFile(file);
+    }
+    if (e.target) {
+      e.target.value = '';
+    }
+  };
+
+  // Handle Legacy JSON File Selection from legacy file picker
+  const handleLegacyJsonFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       await processImportFile(file);
@@ -1102,113 +922,112 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
       setImportError('Please paste valid JSON text into the box.');
       return;
     }
+    setIsImportingFormat('legacy-json');
     await processImportContent(pasteJsonText);
   };
 
-  // Install Imported Pack
+  // Helper to persist a single pack data into app state
+  const installSinglePackData = async (packData: VaultPackFile): Promise<string> => {
+    const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const packId = `custom-pack-${uniqueSuffix}`;
+    const sceneId = `custom-scene-${uniqueSuffix}`;
+
+    let sceneToSave: CanvasScene | undefined = undefined;
+    if (packData.themeScene) {
+      let finalConfig = packData.themeScene.customConfig;
+      if (finalConfig?.imageUrl && typeof finalConfig.imageUrl === 'string') {
+        let imageUrl = finalConfig.imageUrl;
+        try {
+          imageUrl = await optimizeImageDataUrl(finalConfig.imageUrl, 1920, 1080, 0.84, 'image/jpeg');
+        } catch {
+          // Keep existing if optimize fails
+        }
+        finalConfig = {
+          ...finalConfig,
+          type: 'image',
+          imageUrl,
+        };
+      }
+
+      sceneToSave = {
+        ...packData.themeScene,
+        id: sceneId,
+        isCustom: true,
+        packId,
+        pattern: 'custom-image',
+        customConfig: finalConfig,
+      };
+    }
+
+    const stickersToSave: Sticker[] = (packData.stickers || []).map((s, idx) => ({
+      ...s,
+      name: typeof s.name === 'string' ? s.name : `Sticker ${idx + 1}`,
+      svgIcon: typeof s.svgIcon === 'string' ? s.svgIcon : '✨',
+      rarity: s.rarity || 'Common',
+      color: typeof s.color === 'string' ? s.color : 'text-indigo-400',
+      description: typeof s.description === 'string' ? s.description : 'Custom sticker',
+      id: `imported-stk-${Date.now()}-${idx}`,
+      packId,
+      isUnlocked: true,
+    }));
+
+    const packToSave: StickerPack = {
+      id: packId,
+      name: typeof packData.name === 'string' ? packData.name : 'Imported Pack',
+      author: typeof packData.author === 'string' ? packData.author : 'Community',
+      theme: (packData.themeScene?.theme && typeof packData.themeScene.theme === 'string')
+        ? packData.themeScene.theme
+        : (typeof packData.name === 'string' ? packData.name : 'Imported Pack'),
+      description: typeof packData.description === 'string' ? packData.description : 'Custom Vault Pack',
+      icon: typeof packData.icon === 'string' ? packData.icon : (stickersToSave.length > 0 ? '📦' : '🎨'),
+      isUnlocked: true,
+      isCustom: true,
+      stickers: stickersToSave,
+      themeSceneId: sceneToSave ? sceneId : undefined,
+    };
+
+    onSavePack(packToSave, sceneToSave);
+    return packId;
+  };
+
+  // Install Imported Pack (single active preview)
   const handleInstallImportedPack = async () => {
     if (!importPreview) return;
     try {
       sounds.playFanfare();
-
-      const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-      const packId = `custom-pack-${uniqueSuffix}`;
-      const sceneId = `custom-scene-${uniqueSuffix}`;
-
-      let sceneToSave: CanvasScene | undefined = undefined;
-      if (importPreview.themeScene) {
-        let finalConfig = importPreview.themeScene.customConfig;
-        if (finalConfig?.imageUrl && typeof finalConfig.imageUrl === 'string') {
-          let imageUrl = finalConfig.imageUrl;
-          try {
-            imageUrl = await optimizeImageDataUrl(finalConfig.imageUrl, 1920, 1080, 0.84, 'image/jpeg');
-          } catch {
-            // Keep existing if optimize fails
-          }
-          finalConfig = {
-            ...finalConfig,
-            type: 'image',
-            imageUrl,
-            presetTemplate: undefined,
-            svgMarkup: undefined,
-          };
-        }
-
-        const effectivePattern: CanvasScene['pattern'] =
-          finalConfig?.imageUrl
-            ? 'custom-image'
-            : (finalConfig?.svgMarkup ? 'custom-svg' : (importPreview.themeScene.pattern || 'custom-image'));
-
-        if (!finalConfig?.imageUrl && (finalConfig?.svgMarkup || finalConfig?.presetTemplate || effectivePattern === 'custom-svg')) {
-          finalConfig = {
-            ...(finalConfig || {}),
-            type: 'svg',
-          };
-        }
-
-        sceneToSave = {
-          ...importPreview.themeScene,
-          id: sceneId,
-          isCustom: true,
-          packId,
-          pattern: effectivePattern,
-          customConfig: finalConfig,
-        };
-      } else {
-        const themeTitle = typeof importPreview.name === 'string' ? importPreview.name : 'Imported Theme';
-        sceneToSave = {
-          id: sceneId,
-          name: themeTitle,
-          theme: themeTitle,
-          bgGradient: 'bg-slate-950',
-          pattern: 'custom-svg',
-          isCustom: true,
-          author: typeof importPreview.author === 'string' ? importPreview.author : 'Community',
-          customConfig: {
-            type: 'svg',
-            svgMarkup: `<svg viewBox="0 0 1000 500" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="amb-${packId}" cx="50%" cy="30%" r="70%"><stop offset="0%" stop-color="#1e1b4b" stop-opacity="0.9" /><stop offset="60%" stop-color="#0f172a" stop-opacity="0.95" /><stop offset="100%" stop-color="#020617" stop-opacity="1" /></radialGradient></defs><rect width="1000" height="500" fill="url(#amb-${packId})" /><circle cx="820" cy="110" r="45" fill="#fef08a" opacity="0.85" /><circle cx="805" cy="100" r="42" fill="#0f172a" opacity="0.9" /></svg>`,
-          },
-          packId,
-        };
-      }
-
-      const stickersToSave: Sticker[] = (importPreview.stickers || []).map((s, idx) => ({
-        ...s,
-        name: typeof s.name === 'string' ? s.name : `Sticker ${idx + 1}`,
-        svgIcon: typeof s.svgIcon === 'string' ? s.svgIcon : '✨',
-        rarity: s.rarity || 'Common',
-        color: typeof s.color === 'string' ? s.color : 'text-indigo-400',
-        description: typeof s.description === 'string' ? s.description : 'Custom sticker',
-        id: `imported-stk-${Date.now()}-${idx}`,
-        packId,
-        isUnlocked: true,
-      }));
-
-      const packToSave: StickerPack = {
-        id: packId,
-        name: typeof importPreview.name === 'string' ? importPreview.name : 'Imported Pack',
-        author: typeof importPreview.author === 'string' ? importPreview.author : 'Community',
-        theme: (importPreview.themeScene?.theme && typeof importPreview.themeScene.theme === 'string')
-          ? importPreview.themeScene.theme
-          : (typeof importPreview.name === 'string' ? importPreview.name : 'Imported Pack'),
-        description: typeof importPreview.description === 'string' ? importPreview.description : 'Custom Vault Pack',
-        icon: typeof importPreview.icon === 'string' ? importPreview.icon : (stickersToSave.length > 0 ? '📦' : '🎨'),
-        isUnlocked: true,
-        isCustom: true,
-        stickers: stickersToSave,
-        themeSceneId: sceneId,
-      };
-
-      onSavePack(packToSave, sceneToSave);
+      const newPackId = await installSinglePackData(importPreview);
       setImportPreview(null);
+      setMultiPackBundle(null);
       if (packFilter === 'built-in') {
         setPackFilter('all');
       }
       setActiveTab('installed');
-      setTargetScrollPackId(packId);
+      setTargetScrollPackId(newPackId);
     } catch (saveErr) {
       console.error('Failed to install imported pack:', saveErr);
       setImportError('Failed to save imported pack to your vault storage.');
+    }
+  };
+
+  // Install All Packs in a Master Bundle
+  const handleInstallAllBundlePacks = async () => {
+    if (!multiPackBundle || multiPackBundle.length === 0) return;
+    try {
+      sounds.playFanfare();
+      let lastPackId = '';
+      for (const p of multiPackBundle) {
+        lastPackId = await installSinglePackData(p);
+      }
+      setImportPreview(null);
+      setMultiPackBundle(null);
+      if (packFilter === 'built-in') {
+        setPackFilter('all');
+      }
+      setActiveTab('installed');
+      if (lastPackId) setTargetScrollPackId(lastPackId);
+    } catch (saveErr) {
+      console.error('Failed to install all bundle packs:', saveErr);
+      setImportError('Failed to save all packs from the bundle.');
     }
   };
 
@@ -1308,7 +1127,7 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
                   <span>Forge Themes</span>
                 </div>
                 <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-[11px]">
-                  Pick SVG geometric scenes or upload 16:9 wallpaper. Configure dimming, blur, and isometric/dot grids.
+                  Upload 16:9 wallpaper images or customize scenes. Configure dimming, blur, opacity, fit scaling, and grid overlays.
                 </p>
               </div>
 
@@ -1338,7 +1157,7 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
                   <span>Export & Import</span>
                 </div>
                 <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-[11px]">
-                  Export a lightweight <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-[10px]">.vault-pack.json</code> bundle. Imported packs auto-sync their theme and reward states.
+                  Export portable <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-[10px]">.zip</code> bundles with transparent PNGs. Read-only import for legacy <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-[10px]">.json</code> packs is also supported.
                 </p>
               </div>
             </div>
@@ -1364,15 +1183,18 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
             </button>
 
             <button
-              onClick={handleStartCreateNew}
+              onClick={() => {
+                sounds.playPop();
+                setActiveTab('create');
+              }}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
                 activeTab === 'create'
                   ? 'bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>{editingPackId ? 'Edit Pack' : 'Create New Pack'}</span>
+              <Pencil className="w-3.5 h-3.5" />
+              <span>Add / Edit</span>
             </button>
 
             <button
@@ -1386,45 +1208,10 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
                   : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
-              <Upload className="w-3.5 h-3.5" />
-              <span>Import Pack (.json)</span>
+              <FolderArchive className="w-3.5 h-3.5" />
+              <span>Import Pack</span>
             </button>
           </div>
-
-          {activeTab === 'installed' && (
-            <div className="flex items-center gap-1 text-xs">
-              <button
-                onClick={() => setPackFilter('all')}
-                className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
-                  packFilter === 'all'
-                    ? 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-100'
-                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setPackFilter('custom')}
-                className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
-                  packFilter === 'custom'
-                    ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-bold'
-                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                }`}
-              >
-                Custom ({packs.filter((p) => p.isCustom).length})
-              </button>
-              <button
-                onClick={() => setPackFilter('built-in')}
-                className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
-                  packFilter === 'built-in'
-                    ? 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-100'
-                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                }`}
-              >
-                Built-in ({packs.filter((p) => !p.isCustom).length})
-              </button>
-            </div>
-          )}
         </div>
 
         {/* MODAL BODY CONTAINER */}
@@ -1463,49 +1250,63 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
           {/* TAB 1: INSTALLED PACKS LIST */}
           {activeTab === 'installed' && (
             <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Manage your sticker packs and companion themes. Export to JSON or download PNG image archives!
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    sounds.playPop();
+                    if (packFilter === 'all') {
+                      setPackFilter('custom');
+                    } else if (packFilter === 'custom') {
+                      setPackFilter('built-in');
+                    } else {
+                      setPackFilter('all');
+                    }
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all flex items-center gap-2 shadow-2xs hover:border-indigo-400 dark:hover:border-indigo-500 cursor-pointer"
+                  title="Click to toggle filter (All Packs → Custom Packs → Core Packs)"
+                >
+                  <Filter className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span>
+                    {packFilter === 'all' && `All Packs (${packs.length})`}
+                    {packFilter === 'custom' && `Custom Packs (${packs.filter((p) => p.isCustom).length})`}
+                    {packFilter === 'built-in' && `Core Packs (${packs.filter((p) => !p.isCustom).length})`}
+                  </span>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">⇄</span>
+                </button>
+
+                {exportProgressText && (
+                  <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 animate-pulse flex items-center gap-1.5">
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    <span>{exportProgressText}</span>
                   </p>
-                  {exportProgressText && (
-                    <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 animate-pulse flex items-center gap-1.5 mt-1">
-                      <RefreshCw className="w-3 h-3 animate-spin" />
-                      <span>{exportProgressText}</span>
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {/* Export All Core Packs (.zip) Button */}
-                  <button
-                    type="button"
-                    onClick={handleExportAllCorePacksZip}
-                    disabled={isExportingAllZip}
-                    title="Export all core theme packs as a master .zip archive with transparent .png images"
-                    className="px-3 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700/80 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-800 dark:text-amber-200 text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
-                  >
-                    {isExportingAllZip ? (
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-600" />
-                    ) : (
-                      <FolderArchive className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                    )}
-                    <span>Export Core Packs (.zip)</span>
-                  </button>
-                  <button
-                    onClick={handleStartCreateNew}
-                    className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors flex items-center gap-1.5 shadow-xs"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>New Combo Pack</span>
-                  </button>
-                </div>
+                )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {displayedPacks.length === 0 ? (
+                <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-850/30">
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    No packs found for this filter.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sounds.playPop();
+                      setPackFilter('all');
+                    }}
+                    className="mt-2 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                  >
+                    Show All Packs
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {displayedPacks.map((pack) => {
                   const linkedScene = scenes.find((s) => s.id === pack.themeSceneId || s.packId === pack.id);
-                  const isCombo = !!linkedScene && pack.stickers.length > 0;
-                  const isBackgroundOnly = !!linkedScene && pack.stickers.length === 0;
+                  const hasBackdrop = !!linkedScene;
+                  const hasStickers = pack.stickers && pack.stickers.length > 0;
+                  const isCombo = hasBackdrop && hasStickers;
+                  const isBackdropOnly = hasBackdrop && !hasStickers;
                   const isHighlighted = highlightedPackId === pack.id;
 
                   return (
@@ -1554,16 +1355,16 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
                             className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                               isCombo
                                 ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-                                : isBackgroundOnly
+                                : isBackdropOnly
                                 ? 'bg-cyan-50 dark:bg-cyan-950/50 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800'
                                 : 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800'
                             }`}
                           >
                             {isCombo
-                              ? `Combo (${pack.stickers.length} stk + theme)`
-                              : isBackgroundOnly
-                              ? 'Theme Only'
-                              : `${pack.stickers.length} Stickers`}
+                              ? 'Combo'
+                              : isBackdropOnly
+                              ? 'Backdrop'
+                              : 'Stickers'}
                           </span>
                         </div>
 
@@ -1601,34 +1402,24 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
                         </div>
 
                         <div className="flex items-center gap-1.5">
-                          {/* Export Pack PNGs (.zip) Button */}
+                          {/* Primary Branded Export Pack (.zip) Button */}
                           <button
                             type="button"
                             onClick={() => handleExportPackPngZip(pack)}
                             disabled={isExportingZipId === pack.id}
-                            title={`Export ${pack.name} as .zip containing transparent .png images`}
-                            className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-2xs border ${
+                            title={`Export ${pack.name} as branded .zip pack archive`}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs border ${
                               isExportingZipId === pack.id
                                 ? 'bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 cursor-wait'
-                                : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-300 dark:hover:border-amber-500/50 hover:bg-amber-50/50 dark:hover:bg-amber-950/30 cursor-pointer'
+                                : 'bg-indigo-50/80 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 hover:border-indigo-300 cursor-pointer'
                             }`}
                           >
                             {isExportingZipId === pack.id ? (
-                              <RefreshCw className="w-3 h-3 animate-spin text-amber-600" />
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-600" />
                             ) : (
-                              <FolderArchive className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                              <FolderArchive className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                             )}
-                            <span className="text-[10px]">PNG.zip</span>
-                          </button>
-
-                          {/* Export Pack JSON Button */}
-                          <button
-                            type="button"
-                            onClick={() => handleExportSinglePack(pack)}
-                            title="Export pack to .json file"
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors"
-                          >
-                            <Download className="w-3.5 h-3.5" />
+                            <span className="text-[11px]">Export .zip</span>
                           </button>
 
                           {/* Duplicate Pack Button */}
@@ -1702,8 +1493,9 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
                   );
                 })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
+        )}
 
           {/* TAB 2: PACK CREATOR & STUDIO */}
           {activeTab === 'create' && (
@@ -1743,81 +1535,34 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
                 </div>
               )}
 
-              {/* 1. Pack Type Choice (Combo vs Stickers Only vs Background Only) */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-2">
-                  What kind of pack are you creating?
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      sounds.playPop();
-                      setPackKind('combo');
-                    }}
-                    className={`p-3 rounded-2xl border text-left transition-all ${
-                      packKind === 'combo'
-                        ? 'bg-amber-500/10 border-amber-500 dark:border-amber-400 ring-2 ring-amber-500/30'
-                        : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+              {/* Pack Content Dynamic Indicator (reflects what is in the pack) */}
+              <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-850/40 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">
+                    Pack Content:
+                  </span>
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                      includeBackdrop && packStickers.length > 0
+                        ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                        : includeBackdrop
+                        ? 'bg-cyan-50 dark:bg-cyan-950/50 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800'
+                        : 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800'
                     }`}
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xl">🌟</span>
-                      <span className="font-bold text-sm text-slate-800 dark:text-slate-100">
-                        Full Theme Combo
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Themed background scene + 8–12 matching stickers. The ideal complete study experience.
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      sounds.playPop();
-                      setPackKind('stickers-only');
-                    }}
-                    className={`p-3 rounded-2xl border text-left transition-all ${
-                      packKind === 'stickers-only'
-                        ? 'bg-purple-500/10 border-purple-500 dark:border-purple-400 ring-2 ring-purple-500/30'
-                        : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xl">🏷️</span>
-                      <span className="font-bold text-sm text-slate-800 dark:text-slate-100">
-                        Stickers Only
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Collection of custom emoji or uploaded image badges with rarity tags and white border die-cuts.
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      sounds.playPop();
-                      setPackKind('background-only');
-                    }}
-                    className={`p-3 rounded-2xl border text-left transition-all ${
-                      packKind === 'background-only'
-                        ? 'bg-cyan-500/10 border-cyan-500 dark:border-cyan-400 ring-2 ring-cyan-500/30'
-                        : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xl">🎨</span>
-                      <span className="font-bold text-sm text-slate-800 dark:text-slate-100">
-                        Background Only
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      A standalone custom wallpaper or SVG vector scene backdrop for the StickerBook canvas.
-                    </p>
-                  </button>
+                    {includeBackdrop && packStickers.length > 0
+                      ? 'Combo'
+                      : includeBackdrop
+                      ? 'Backdrop'
+                      : 'Stickers'}
+                  </span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    ({includeBackdrop ? '1 Backdrop' : 'No Backdrop'} • {packStickers.length} Sticker{packStickers.length === 1 ? '' : 's'})
+                  </span>
                 </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Use the tools below to add or remove backdrops and stickers anytime.
+                </p>
               </div>
 
               {/* 2. General Pack Details */}
@@ -1872,98 +1617,109 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
                 </div>
               </div>
 
-              {/* 3. BACKGROUND STUDIO (For Combo or Background Only) */}
-              {(packKind === 'combo' || packKind === 'background-only') && (
-                <div className="p-5 rounded-2xl border-2 border-indigo-200/70 dark:border-indigo-900/60 bg-white dark:bg-slate-900 space-y-4">
-                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-                    <div className="flex items-center gap-2">
-                      <Palette className="w-4 h-4 text-indigo-500" />
-                      <h4 className="font-display font-bold text-sm text-slate-800 dark:text-slate-100">
-                        Canvas Theme Backdrop Studio
-                      </h4>
-                      {packTheme && (
-                        <span className="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold border border-indigo-200/60 dark:border-indigo-800/60">
-                          {packTheme}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Method Toggle: Image Adjuster vs SVG Builder */}
-                    <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          sounds.playPop();
-                          setBgType('image');
-                        }}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                          bgType === 'image'
-                            ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-2xs'
-                            : 'text-slate-500 hover:text-slate-700'
-                        }`}
-                      >
-                        <ImageIcon className="w-3.5 h-3.5" />
-                        <span>Image Wallpaper & Adjuster</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          sounds.playPop();
-                          setBgType('svg');
-                        }}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                          bgType === 'svg'
-                            ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-2xs'
-                            : 'text-slate-500 hover:text-slate-700'
-                        }`}
-                      >
-                        <Code2 className="w-3.5 h-3.5" />
-                        <span>SVG Vector Canvas Builder</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Live Mini Preview Canvas */}
-                  <div className="relative w-full h-44 rounded-2xl overflow-hidden border-2 border-slate-300 dark:border-slate-700 shadow-inner bg-slate-950 flex items-center justify-center">
-                    <CustomCanvasBackground
-                      config={
-                        bgType === 'image'
-                          ? {
-                              type: 'image',
-                              imageUrl: bgImageUrl,
-                              opacity: bgOpacity,
-                              dimming: bgDimming,
-                              blur: bgBlur,
-                              fitMode: bgFitMode,
-                              gridOverlay: bgGridOverlay,
-                              overlayColor: bgOverlayColor,
-                            }
-                          : {
-                              type: 'svg',
-                              svgMarkup: bgSvgMarkup,
-                            }
-                      }
-                    />
-
-                    {!bgImageUrl && bgType === 'image' && (
-                      <div className="relative z-10 text-center p-4">
-                        <ImageIcon className="w-8 h-8 mx-auto text-slate-500 mb-1 opacity-60" />
-                        <p className="text-xs text-slate-400 font-medium">
-                          Upload a PNG, WebP, or JPEG wallpaper below to preview
-                        </p>
-                      </div>
+              {/* 3. BACKGROUND STUDIO */}
+              <div className="p-5 rounded-2xl border-2 border-indigo-200/70 dark:border-indigo-900/60 bg-white dark:bg-slate-900 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Palette className="w-4 h-4 text-indigo-500" />
+                    <h4 className="font-display font-bold text-sm text-slate-800 dark:text-slate-100">
+                      Canvas Theme Backdrop Studio
+                    </h4>
+                    {includeBackdrop ? (
+                      <span className="px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-950/70 text-cyan-700 dark:text-cyan-300 text-[10px] font-bold border border-cyan-200/60 dark:border-cyan-800/60">
+                        Backdrop Active
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 text-[10px] font-bold">
+                        No Backdrop
+                      </span>
                     )}
-
-                    {/* Watermark in Preview */}
-                    <div className="absolute top-2 left-3 text-[10px] font-mono uppercase tracking-wider text-white/50 pointer-events-none">
-                      {packName || 'Theme Preview'} • Live Canvas
-                    </div>
                   </div>
 
-                  {/* SUB-SECTION A: IMAGE ADJUSTER CONTROLS */}
-                  {bgType === 'image' && (
-                    <div key="bg-image-controls" className="space-y-4 pt-2">
+                  <div>
+                    {includeBackdrop ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          sounds.playPop();
+                          setIncludeBackdrop(false);
+                        }}
+                        className="px-2.5 py-1 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 transition-colors flex items-center gap-1 cursor-pointer"
+                        title="Remove backdrop from this pack"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Remove Backdrop</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          sounds.playPop();
+                          setIncludeBackdrop(true);
+                        }}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add Backdrop</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {!includeBackdrop ? (
+                  <div className="py-6 px-4 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-slate-500 text-xs space-y-2 bg-slate-50/50 dark:bg-slate-900/30">
+                    <p className="font-semibold text-slate-700 dark:text-slate-300">
+                      No companion backdrop currently attached.
+                    </p>
+                    <p className="text-slate-400 text-[11px]">
+                      This pack will only contain stickers unless you attach a companion backdrop scene.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        sounds.playPop();
+                        setIncludeBackdrop(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs cursor-pointer shadow-xs transition-colors mt-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Backdrop</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Live Mini Preview Canvas */}
+                    <div className="relative w-full h-44 rounded-2xl overflow-hidden border-2 border-slate-300 dark:border-slate-700 shadow-inner bg-slate-950 flex items-center justify-center">
+                      <CustomCanvasBackground
+                        config={{
+                          type: 'image',
+                          imageUrl: bgImageUrl,
+                          opacity: bgOpacity,
+                          dimming: bgDimming,
+                          blur: bgBlur,
+                          fitMode: bgFitMode,
+                          gridOverlay: bgGridOverlay,
+                          overlayColor: bgOverlayColor,
+                        }}
+                      />
+
+                      {!bgImageUrl && (
+                        <div className="relative z-10 text-center p-4">
+                          <ImageIcon className="w-8 h-8 mx-auto text-slate-500 mb-1 opacity-60" />
+                          <p className="text-xs text-slate-400 font-medium">
+                            Upload a PNG, WebP, or JPEG wallpaper below to preview
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Watermark in Preview */}
+                      <div className="absolute top-2 left-3 text-[10px] font-mono uppercase tracking-wider text-white/50 pointer-events-none">
+                        {packName || 'Theme Preview'} • Live Canvas
+                      </div>
+                    </div>
+
+                    {/* Image Adjuster Controls */}
+                    <div key="bg-image-controls" className="space-y-4 pt-1">
                       <div className="flex items-center gap-3">
                         <input
                           key="image-bg-file-input"
@@ -2088,72 +1844,42 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
                         </div>
                       </div>
                     </div>
-                  )}
+                  </div>
+                )}
+            </div>
 
-                  {/* SUB-SECTION B: SVG CANVAS BUILDER */}
-                  {bgType === 'svg' && (
-                    <div className="space-y-3 pt-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                          Starter Vector Template:
-                        </label>
-                        <select
-                          value={selectedTemplateId ?? SVG_BACKGROUND_TEMPLATES[0].id}
-                          onChange={(e) => {
-                            const val = e.target.value ?? '';
-                            const found = SVG_BACKGROUND_TEMPLATES.find((t) => t.id === val);
-                            if (found) {
-                              setSelectedTemplateId(found.id);
-                              setBgSvgMarkup(found.svgMarkup ?? '');
-                              sounds.playPop();
-                            } else {
-                              setSelectedTemplateId(val || SVG_BACKGROUND_TEMPLATES[0].id);
-                            }
-                          }}
-                          className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-200 outline-hidden"
-                        >
-                          {SVG_BACKGROUND_TEMPLATES.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name} ({t.category})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+              {/* 4. STICKERS ROSTER */}
+              <div className="p-5 rounded-2xl border-2 border-purple-200/70 dark:border-purple-900/60 bg-white dark:bg-slate-900 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-purple-500" />
+                    <h4 className="font-display font-bold text-sm text-slate-800 dark:text-slate-100">
+                      Stickers in Pack ({packStickers.length})
+                    </h4>
+                  </div>
 
-                      <div>
-                        <div className="flex justify-between text-xs text-slate-500 mb-1">
-                          <span>SVG Markup (Sanitized & Live-Rendered)</span>
-                          <span className="text-[11px] text-indigo-500">Auto-scales to canvas</span>
-                        </div>
-                        <textarea
-                          rows={6}
-                          value={bgSvgMarkup ?? ''}
-                          onChange={(e) => setBgSvgMarkup(e.target.value ?? '')}
-                          placeholder="<svg viewBox='0 0 1000 500'>...</svg>"
-                          className="w-full px-3 py-2 font-mono text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 outline-hidden"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* 4. STICKERS ROSTER (For Combo or Stickers Only) */}
-              {(packKind === 'combo' || packKind === 'stickers-only') && (
-                <div className="p-5 rounded-2xl border-2 border-purple-200/70 dark:border-purple-900/60 bg-white dark:bg-slate-900 space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-purple-500" />
-                      <h4 className="font-display font-bold text-sm text-slate-800 dark:text-slate-100">
-                        Stickers in Pack ({packStickers.length})
-                      </h4>
-                    </div>
-
-                    <div className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium border border-purple-200 dark:border-purple-800 bg-purple-50/70 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 ml-auto">
+                  <div className="flex items-center gap-2">
+                    {packStickers.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          sounds.playPop();
+                          setPackStickers([]);
+                          setSelectedDraftStickerId(null);
+                        }}
+                        className="px-2.5 py-1 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 transition-colors flex items-center gap-1 cursor-pointer"
+                        title="Remove all stickers"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Remove All Stickers</span>
+                      </button>
+                    )}
+                    <div className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium border border-purple-200 dark:border-purple-800 bg-purple-50/70 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300">
                       <span>🎯 Recommended: 8–12</span>
                       <span className="font-bold">({packStickers.length} stickers)</span>
                     </div>
                   </div>
+                </div>
 
                   {/* Existing Stickers Grid in Draft */}
                   {packStickers.length === 0 ? (
@@ -2489,7 +2215,6 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
                     </div>
                   </div>
                 </div>
-              )}
 
               {/* 5. BOTTOM SAVE & CANCEL BAR */}
               <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
@@ -2563,25 +2288,25 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
 
           {/* TAB 3: IMPORT PACK */}
           {activeTab === 'import' && (
-            <div className="space-y-6 max-w-xl mx-auto py-4">
+            <div className="space-y-5 max-w-xl mx-auto py-4">
               <div className="text-center space-y-2">
                 <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto shadow-xs border border-indigo-100 dark:border-indigo-900">
-                  <FolderDown className="w-7 h-7" />
+                  <FolderArchive className="w-7 h-7" />
                 </div>
                 <h4 className="font-display font-bold text-base text-slate-800 dark:text-slate-100">
-                  Import Shared Pack (.json)
+                  Import StickerBook Pack
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Select or drop a StickerBook Vault Pack JSON file to install custom themes, sticker collections, or full combos.
+                  Select or drop a StickerBook pack archive to install custom themes, transparent PNG stickers, and companion backdrops.
                 </p>
               </div>
 
-              {/* Dropzone / Upload Box */}
+              {/* Primary Branded ZIP Dropzone / Upload Box */}
               <input
-                key="import-json-file-input"
+                key="import-zip-file-input"
                 ref={importFileInputRef}
                 type="file"
-                accept=".json,application/json,text/plain"
+                accept=".zip,application/zip,application/x-zip-compressed"
                 onChange={handleImportFileChange}
                 className="hidden"
               />
@@ -2606,56 +2331,109 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
                   <div className="py-2 flex flex-col items-center justify-center space-y-2">
                     <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
                     <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                      Reading pack from Google Drive / storage...
+                      {readingFileStatus || 'Reading and extracting pack archive...'}
                     </p>
                   </div>
                 ) : (
                   <>
-                    <Upload className="w-8 h-8 text-indigo-500 mx-auto mb-2 opacity-80" />
-                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                      Click to choose file or drag and drop
+                    <FolderArchive className="w-10 h-10 text-indigo-500 mx-auto mb-2 opacity-90" />
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                      Click to choose pack or drag and drop archive
                     </p>
-                    <p className="text-xs text-slate-400 mt-1">Accepts .json and .stickerbook-pack.json</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Accepts branded StickerBook and master bundle archives
+                    </p>
+                    <div className="mt-2.5">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                        Primary Branded Format
+                      </span>
+                    </div>
                   </>
                 )}
               </div>
 
-              {/* Alternative: Direct JSON Text Paste */}
-              <div className="border border-slate-200 dark:border-slate-800 rounded-2xl p-4 bg-slate-50/60 dark:bg-slate-850/40">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Trouble picking from Google Drive?
+              {/* Small Legacy Support (Read-Only) Link / Button */}
+              <div className="pt-2 border-t border-slate-200/80 dark:border-slate-800">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5 text-[11px]">
+                    <Info className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Have an older format pack?</span>
                   </span>
                   <button
                     type="button"
-                    onClick={() => setShowPasteBox(!showPasteBox)}
-                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                    onClick={() => setShowLegacyImport(!showLegacyImport)}
+                    className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline cursor-pointer flex items-center gap-1"
                   >
-                    {showPasteBox ? 'Hide Paste Box' : 'Paste JSON Text Directly →'}
+                    <span>{showLegacyImport ? 'Hide Legacy Support' : 'Legacy JSON Support (Read-Only) →'}</span>
                   </button>
                 </div>
 
-                {showPasteBox && (
-                  <div className="mt-3 space-y-2 animate-in fade-in duration-200">
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Copy the contents of your shared Google Drive JSON file and paste it below:
+                {showLegacyImport && (
+                  <div className="mt-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                        <FileText className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Legacy JSON Pack Importer (Read-Only)</span>
+                      </div>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60">
+                        Legacy v1 Read-Only
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                      Read-only backward compatibility for importing previous v1 single-pack JSON files or pasting raw JSON text. All newly exported packs use the primary branded .zip format.
                     </p>
-                    <textarea
-                      value={pasteJsonText ?? ''}
-                      onChange={(e) => setPasteJsonText(e.target.value ?? '')}
-                      placeholder='{"name": "My Pack", "stickers": [...]}'
-                      rows={5}
-                      className="w-full text-xs font-mono p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
-                    />
-                    <div className="flex justify-end">
+
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <input
+                        ref={legacyJsonFileInputRef}
+                        type="file"
+                        accept=".json,application/json,text/plain"
+                        onChange={handleLegacyJsonFileChange}
+                        className="hidden"
+                      />
                       <button
                         type="button"
-                        onClick={handleParsePastedJson}
-                        className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                        onClick={() => {
+                          if (!isReadingFile && legacyJsonFileInputRef.current) {
+                            legacyJsonFileInputRef.current.value = '';
+                            legacyJsonFileInputRef.current.click();
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
                       >
-                        Parse & Preview Pasted Pack
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Choose Legacy .json File</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowPasteBox(!showPasteBox)}
+                        className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                      >
+                        <Code2 className="w-3.5 h-3.5" />
+                        <span>{showPasteBox ? 'Hide Paste Box' : 'Paste JSON Text Directly'}</span>
                       </button>
                     </div>
+
+                    {showPasteBox && (
+                      <div className="mt-2 space-y-2 animate-in fade-in duration-200">
+                        <textarea
+                          value={pasteJsonText ?? ''}
+                          onChange={(e) => setPasteJsonText(e.target.value ?? '')}
+                          placeholder='{"name": "My Pack", "stickers": [...]}'
+                          rows={4}
+                          className="w-full text-xs font-mono p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={handleParsePastedJson}
+                            className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                          >
+                            Parse Legacy Pack
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -2667,9 +2445,45 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
                 </div>
               )}
 
-              {/* File Parsed Preview */}
+              {/* Parsed Pack Preview Card */}
               {importPreview && (
                 <div className="p-5 rounded-2xl border-2 border-indigo-500 bg-white dark:bg-slate-900 shadow-xl space-y-4 animate-fade-in">
+                  {/* Multi-Pack Bundle Navigation (if bundle was imported) */}
+                  {multiPackBundle && multiPackBundle.length > 1 && (
+                    <div className="p-3 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-indigo-800 dark:text-indigo-200 flex items-center gap-1.5">
+                          <FolderArchive className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                          <span>Master Bundle ({multiPackBundle.length} Packs Included)</span>
+                        </span>
+                        <span className="text-[10px] font-semibold text-slate-500">
+                          Viewing pack {selectedBundlePackIdx + 1} of {multiPackBundle.length}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {multiPackBundle.map((p, idx) => (
+                          <button
+                            key={p.name + idx}
+                            type="button"
+                            onClick={() => {
+                              setSelectedBundlePackIdx(idx);
+                              setImportPreview(p);
+                              sounds.playPop();
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer ${
+                              selectedBundlePackIdx === idx
+                                ? 'bg-indigo-600 text-white shadow-2xs'
+                                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-indigo-400'
+                            }`}
+                          >
+                            <span>{p.icon || '📦'}</span>
+                            <span className="truncate max-w-[120px]">{p.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
                       <span className="text-3xl">{typeof importPreview.icon === 'string' ? importPreview.icon : '📦'}</span>
@@ -2678,42 +2492,123 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
                           {typeof importPreview.name === 'string' ? importPreview.name : 'Custom Pack'}
                         </h4>
                         <p className="text-xs text-slate-500">
-                          By {typeof importPreview.author === 'string' ? importPreview.author : 'Community Creator'}
+                          By {typeof importPreview.author === 'string' ? importPreview.author : 'StickerBook Creator'}
                         </p>
                       </div>
                     </div>
 
-                    <span className="px-2.5 py-1 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-bold text-xs">
-                      {String(importPreview.packType || 'combo').toUpperCase()}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {isImportingFormat === 'zip' ? (
+                        <span className="px-2.5 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-bold text-[10px] flex items-center gap-1">
+                          <FolderArchive className="w-3 h-3" />
+                          <span>BRANDED .ZIP</span>
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-bold text-[10px] flex items-center gap-1">
+                          <FileText className="w-3 h-3" />
+                          <span>LEGACY JSON</span>
+                        </span>
+                      )}
+                      {(() => {
+                        const hasScene = !!(importPreview.themeScene || (importPreview as any).sceneConfig);
+                        const hasStk = !!(importPreview.stickers && importPreview.stickers.length > 0);
+                        const isCombo = hasScene && hasStk;
+                        const isBackdrop = hasScene && !hasStk;
+                        return (
+                          <span
+                            className={`px-2.5 py-1 rounded-full font-bold text-[10px] border ${
+                              isCombo
+                                ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                                : isBackdrop
+                                ? 'bg-cyan-50 dark:bg-cyan-950/50 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800'
+                                : 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800'
+                            }`}
+                          >
+                            {isCombo ? 'Combo' : isBackdrop ? 'Backdrop' : 'Stickers'}
+                          </span>
+                        );
+                      })()}
+                    </div>
                   </div>
 
                   <p className="text-xs text-slate-600 dark:text-slate-300">
-                    {typeof importPreview.description === 'string' ? importPreview.description : 'Custom Vault Pack'}
+                    {typeof importPreview.description === 'string' ? importPreview.description : 'StickerBook Pack'}
                   </p>
 
-                  <div className="flex items-center gap-3 text-xs text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-800">
-                    {importPreview.stickers && Array.isArray(importPreview.stickers) && (
-                      <span className="font-bold text-purple-600 dark:text-purple-400">
-                        🏷️ {importPreview.stickers.length} Stickers
-                      </span>
-                    )}
-                    {importPreview.themeScene && (
-                      <span className="font-bold text-cyan-600 dark:text-cyan-400">
-                        🎨 1 Companion Theme ({typeof importPreview.themeScene.name === 'string' ? importPreview.themeScene.name : 'Custom Theme'})
-                      </span>
-                    )}
-                  </div>
+                  {/* Stickers Preview Gallery */}
+                  {importPreview.stickers && Array.isArray(importPreview.stickers) && importPreview.stickers.length > 0 && (
+                    <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1">
+                          <span>🏷️</span>
+                          <span>{importPreview.stickers.length} Stickers Included</span>
+                        </span>
+                        <span className="text-[11px] text-slate-400">Preview</span>
+                      </div>
+                      <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80">
+                        {importPreview.stickers.slice(0, 6).map((stk, sIdx) => (
+                          <div
+                            key={stk.id || sIdx}
+                            className="flex flex-col items-center justify-center p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs aspect-square"
+                            title={stk.name}
+                          >
+                            <div className="w-8 h-8 flex items-center justify-center">
+                              <StickerIconRenderer icon={stk.svgIcon} size="md" alt={stk.name} />
+                            </div>
+                            <span className="text-[9px] font-semibold text-slate-600 dark:text-slate-300 truncate w-full text-center mt-1">
+                              {stk.name}
+                            </span>
+                          </div>
+                        ))}
+                        {importPreview.stickers.length > 6 && (
+                          <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-slate-100 dark:bg-slate-700/60 border border-dashed border-slate-300 dark:border-slate-600 aspect-square text-xs font-bold text-slate-500">
+                            +{importPreview.stickers.length - 6} more
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
-                  <div className="pt-2">
+                  {/* Companion Theme Preview */}
+                  {importPreview.themeScene && (
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                      <span className="text-xs font-bold text-cyan-600 dark:text-cyan-400 flex items-center gap-1.5">
+                        <span>🎨</span>
+                        <span>Companion Theme: {typeof importPreview.themeScene.name === 'string' ? importPreview.themeScene.name : 'Custom Theme'}</span>
+                      </span>
+                      {importPreview.themeScene.customConfig?.imageUrl && (
+                        <div className="w-12 h-7 rounded-md overflow-hidden border border-slate-200 dark:border-slate-700 shrink-0">
+                          <img
+                            src={importPreview.themeScene.customConfig.imageUrl}
+                            alt="Backdrop preview"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="pt-3 space-y-2">
                     <button
                       type="button"
                       onClick={handleInstallImportedPack}
-                      className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-md"
+                      className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-md cursor-pointer"
                     >
                       <FileCheck className="w-4 h-4" />
                       <span>Install Pack to StickerBook</span>
                     </button>
+
+                    {multiPackBundle && multiPackBundle.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={handleInstallAllBundlePacks}
+                        className="w-full py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <FolderArchive className="w-3.5 h-3.5" />
+                        <span>Install All {multiPackBundle.length} Packs from Bundle</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               )}

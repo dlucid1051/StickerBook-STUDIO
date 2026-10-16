@@ -9,7 +9,6 @@ import { OceanBackground } from './OceanBackground';
 import { CustomCanvasBackground } from './CustomCanvasBackground';
 import { ThemeAndPackManagerModal } from './ThemeAndPackManagerModal';
 import { StickerIconRenderer } from './StickerIconRenderer';
-import { sanitizeSvgMarkup } from '../lib/sanitizeSvg';
 import { sounds } from '../lib/sound';
 import { storage } from '../lib/io';
 import { trimAndMaximizeStickerImage } from '../lib/imageOptimizer';
@@ -99,19 +98,7 @@ const ThemeThumbnailPreview: React.FC<ThemeThumbnailPreviewProps> = ({
     );
   }
 
-  // 2. Custom SVG markup wallpaper
-  const svgMarkup = scene.customConfig?.svgMarkup || (scene.customConfig as any)?.svg;
-  if (svgMarkup && (scene.isCustom || !['stars', 'dots', 'arcade', 'ocean', 'notebook'].includes(scene.pattern || ''))) {
-    const cleanSvg = sanitizeSvgMarkup(svgMarkup);
-    return (
-      <div
-        className="w-full h-full overflow-hidden select-none pointer-events-none [&>svg]:w-full [&>svg]:h-full [&>svg]:object-cover"
-        dangerouslySetInnerHTML={{ __html: cleanSvg }}
-      />
-    );
-  }
-
-  // 3. Built-in atmospheric scene themes
+  // 2. Built-in atmospheric scene themes
   if (scene.pattern === 'stars') {
     return (
       <div className="w-full h-full bg-slate-950 relative overflow-hidden flex items-center justify-center select-none pointer-events-none">
@@ -167,20 +154,34 @@ const ThemeThumbnailPreview: React.FC<ThemeThumbnailPreviewProps> = ({
   if (scene.pattern === 'notebook') {
     return (
       <div
-        className="w-full h-full relative overflow-hidden flex items-center justify-center border-l-2 select-none pointer-events-none transition-colors duration-300"
+        className="w-full h-full relative overflow-hidden flex items-center justify-center select-none pointer-events-none transition-colors duration-300 rounded-xs"
         style={{
-          backgroundColor: activePastelHex || '#fbf9f4',
-          borderColor: activePastelHex ? '#e11d48' : '#f87171',
+          backgroundColor: activePastelHex || '#faf7fe',
         }}
       >
+        {/* Top red header rule */}
         <div
-          className="absolute inset-0 opacity-25 dark:opacity-20"
+          className="absolute left-0 right-0 h-[1.5px]"
+          style={{ top: '24%', backgroundColor: '#f43f5e' }}
+        />
+        {/* Left vertical red margin rule */}
+        <div
+          className="absolute top-0 bottom-0 w-[1px]"
+          style={{ left: '20%', backgroundColor: 'rgba(244, 63, 94, 0.45)' }}
+        />
+        {/* Horizontal blue ruled lines (starts below red header rule) */}
+        <div
+          className="absolute left-0 right-0 bottom-0 opacity-40 dark:opacity-30"
           style={{
-            backgroundImage: 'linear-gradient(to bottom, #60a5fa 1px, transparent 1px)',
-            backgroundSize: '100% 7px',
+            top: '24%',
+            backgroundImage: 'linear-gradient(to bottom, transparent 4px, #60a5fa 5px)',
+            backgroundSize: '100% 5px',
+            backgroundPosition: '0 0',
           }}
         />
-        <span className="text-[9px] font-bold text-slate-700/90 dark:text-slate-200 tracking-widest uppercase bg-white/70 dark:bg-slate-900/70 px-1 py-0.2 rounded-xs">Notes</span>
+        <span className="text-[8px] font-bold text-slate-700 dark:text-slate-200 tracking-wider uppercase bg-white/90 dark:bg-slate-900/80 px-1 py-0.2 rounded-xs shadow-2xs z-10 border border-slate-200/60 dark:border-slate-750/60">
+          3×5
+        </span>
       </div>
     );
   }
@@ -1266,7 +1267,6 @@ export const StickerVault: React.FC<StickerVaultProps> = ({
       case 'ocean':
         return 'border-cyan-700/60 shadow-[0_0_25px_rgba(6,182,212,0.18)]';
       case 'custom-image':
-      case 'custom-svg':
         return 'border-indigo-700/50 shadow-xl';
       default:
         return 'border-slate-300 dark:border-slate-700 shadow-md';
@@ -1287,7 +1287,6 @@ export const StickerVault: React.FC<StickerVaultProps> = ({
       case 'ocean':
         return 'bg-gradient-to-b from-[#021526] via-[#03223f] to-[#041e2e] text-cyan-100';
       case 'custom-image':
-      case 'custom-svg':
         return 'bg-slate-950 text-slate-100';
       default:
         return 'bg-white text-slate-800';
@@ -1388,7 +1387,7 @@ export const StickerVault: React.FC<StickerVaultProps> = ({
                         title={
                           isActive
                             ? isPastel
-                              ? `Pastel Theme active (${activePastelSet.name}) — click again to shuffle colors`
+                              ? `3×5 Note Card active (${activePastelSet.name}) — click again to shuffle colors`
                               : `${sc.name} active`
                             : `Switch to ${sc.name}`
                         }
@@ -1625,12 +1624,49 @@ export const StickerVault: React.FC<StickerVaultProps> = ({
               {activeScene.pattern === 'notebook' && (
                 <div 
                   data-canvas-bg="true" 
-                  className="absolute inset-0 opacity-45 transition-all duration-500" 
-                  style={{
-                    backgroundImage: `radial-gradient(${activePastelSet.dotColor} 1.2px, transparent 1.2px)`,
-                    backgroundSize: '20px 20px',
-                  }}
-                />
+                  className="absolute inset-0 select-none pointer-events-none transition-all duration-500 overflow-hidden"
+                >
+                  {/* Subtle paper grain / card texture gradient */}
+                  <div
+                    data-canvas-bg="true"
+                    className="absolute inset-0 opacity-40 dark:opacity-20 pointer-events-none"
+                    style={{
+                      backgroundImage: 'linear-gradient(180deg, rgba(255,255,255,0.45) 0%, rgba(0,0,0,0.02) 100%)',
+                    }}
+                  />
+
+                  {/* Horizontal Blue/Indigo Ruled Lines across the note card body (strictly below the red header rule) */}
+                  <div
+                    data-canvas-bg="true"
+                    className="absolute left-0 right-0 bottom-0 pointer-events-none transition-opacity duration-300"
+                    style={{
+                      top: '48px',
+                      backgroundImage: `linear-gradient(to bottom, transparent calc(100% - 1.2px), ${activePastelSet.ruleColor} 1.2px)`,
+                      backgroundSize: '100% 28px',
+                      backgroundPosition: '0 0',
+                    }}
+                  />
+
+                  {/* Classic Red / Rose Header Rule across the top */}
+                  <div
+                    data-canvas-bg="true"
+                    className="absolute left-0 right-0 h-[2px] transition-colors duration-300 shadow-[0_1px_2px_rgba(244,63,94,0.15)] pointer-events-none"
+                    style={{
+                      top: '48px',
+                      backgroundColor: activePastelSet.headerRuleColor,
+                    }}
+                  />
+
+                  {/* Classic Red / Coral Vertical Margin Rule on the left side */}
+                  <div
+                    data-canvas-bg="true"
+                    className="absolute top-0 bottom-0 w-[1.5px] transition-colors duration-300 pointer-events-none"
+                    style={{
+                      left: '52px',
+                      backgroundColor: activePastelSet.marginColor,
+                    }}
+                  />
+                </div>
               )}
               {activeScene.pattern === 'stars' && !activeScene.isCustom && (
                 <SpaceBackground />
@@ -1644,7 +1680,7 @@ export const StickerVault: React.FC<StickerVaultProps> = ({
               {activeScene.pattern === 'ocean' && !activeScene.isCustom && (
                 <OceanBackground />
               )}
-              {(activeScene.isCustom || activeScene.pattern === 'custom-image' || activeScene.pattern === 'custom-svg') && activeScene.customConfig && (
+              {(activeScene.isCustom || activeScene.pattern === 'custom-image') && activeScene.customConfig && (
                 <CustomCanvasBackground config={activeScene.customConfig} />
               )}
             </div>
@@ -1784,7 +1820,7 @@ export const StickerVault: React.FC<StickerVaultProps> = ({
                 : 'text-indigo-300'
             }`}>
               {activeScene.pattern === 'notebook' 
-                ? `Pastel • ${activePastelSet.name}` 
+                ? `3×5 Card • ${activePastelSet.name}` 
                 : activeScene.name} • {sceneStickers.length} Stickers Placed
             </div>
 

@@ -589,23 +589,9 @@ export function parseVaultPackJSON(jsonStr: string): VaultPackFile | null {
               : 'none') as 'none' | 'dots' | 'lines' | 'isometric',
           },
         };
-      } else if (detectedSvgMarkup) {
-        themeScene = {
-          name: sceneName,
-          theme: themeTag,
-          bgGradient,
-          decorClass: getCleanString(rawSceneObj?.decorClass),
-          pattern: 'custom-svg',
-          isCustom: true,
-          author: getCleanString(rawSceneObj?.author) || getCleanString(data.author) || 'Community',
-          customConfig: {
-            type: 'svg',
-            svgMarkup: detectedSvgMarkup,
-          },
-        };
       } else if (rawSceneObj) {
         // Built-in pattern theme or generic scene
-        const effectivePattern = getCleanString(rawSceneObj.pattern) || 'custom-svg';
+        const effectivePattern = getCleanString(rawSceneObj.pattern) || 'custom-image';
         themeScene = {
           name: sceneName,
           theme: themeTag,

@@ -15,7 +15,7 @@ export const DEFAULT_SETTINGS: StudySettings = {
 export type StickerRarity = 'Common' | 'Rare' | 'Legendary' | 'Mythic';
 
 export interface CustomBackgroundConfig {
-  type: 'image' | 'svg';
+  type?: 'image';
   // For image wallpaper:
   imageUrl?: string;
   backgroundImageUrl?: string;
@@ -25,9 +25,6 @@ export interface CustomBackgroundConfig {
   blur?: number; // 0 to 16
   fitMode?: 'cover' | 'contain' | 'center';
   gridOverlay?: 'none' | 'dots' | 'lines' | 'isometric';
-  // For SVG builder:
-  svgMarkup?: string;
-  presetTemplate?: string;
 }
 
 export interface Sticker {
@@ -79,7 +76,7 @@ export interface CanvasScene {
   theme: string;
   bgGradient: string;
   decorClass?: string;
-  pattern: 'dots' | 'grid' | 'stars' | 'notebook' | 'arcade' | 'ocean' | 'custom-image' | 'custom-svg';
+  pattern: 'dots' | 'grid' | 'stars' | 'notebook' | 'arcade' | 'ocean' | 'custom-image';
   isCustom?: boolean;
   author?: string;
   customConfig?: CustomBackgroundConfig;
@@ -104,6 +101,7 @@ export interface VaultPackFile {
   packType: 'combo' | 'stickers-only' | 'background-only';
   name: string;
   author?: string;
+  theme?: string;
   description: string;
   icon?: string;
   stickers?: ExportedSticker[];
