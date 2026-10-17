@@ -1432,15 +1432,17 @@ export const ThemeAndPackManagerModal: React.FC<ThemeAndPackManagerModalProps> =
                             <Copy className="w-3.5 h-3.5" />
                           </button>
 
-                          {/* Edit Pack Button (Both custom and core themes) */}
-                          <button
-                            type="button"
-                            onClick={() => handleStartEditPack(pack)}
-                            title={pack.isCustom ? "Edit custom pack" : "Edit core theme"}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors cursor-pointer"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
+                          {/* Edit Pack Button (Custom packs only) */}
+                          {pack.isCustom && (
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditPack(pack)}
+                              title="Edit custom pack"
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
 
                           {/* Delete Pack (Custom only) */}
                           {pack.isCustom && (
