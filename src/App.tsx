@@ -62,10 +62,14 @@ export default function App() {
     const mergedBuiltIns = INITIAL_STICKER_PACKS.map((core) => {
       const override = coreOverrides.get(core.id);
       if (!override) return core;
+      // Preserve all official built-in core stickers, plus any custom-minted stickers added to this pack
+      const extraCustomStickers = (override.stickers || []).filter(
+        (s) => !isOldCoreSticker(s.id) && !core.stickers.some((cs) => cs.id === s.id)
+      );
       return {
         ...core,
         ...override,
-        stickers: (override.stickers || []).filter((s) => !isOldCoreSticker(s.id)),
+        stickers: [...core.stickers, ...extraCustomStickers],
         isCustom: false,
       };
     });
